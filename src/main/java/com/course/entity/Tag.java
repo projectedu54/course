@@ -3,7 +3,12 @@ package com.course.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "tag")
+@Table(
+        name = "tag",
+        indexes = {
+                @Index(name = "idx_tag_name", columnList = "name")
+        }
+)
 public class Tag {
 
     @Id

@@ -6,8 +6,16 @@ import java.util.Set;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "course")
+@Table(
+        name = "course",
+        indexes = {
+                @Index(name = "idx_course_title", columnList = "title"),
+                @Index(name = "idx_course_status", columnList = "status"),
+                @Index(name = "idx_course_created_at", columnList = "created_at")
+        }
+)
 public class Course {
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

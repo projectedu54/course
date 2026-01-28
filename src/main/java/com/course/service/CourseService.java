@@ -7,6 +7,8 @@ import com.course.entity.Tag;
 import com.course.exception.customException.CourseServiceException;
 import com.course.repository.CourseRepository;
 import com.course.repository.TagRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -120,4 +122,12 @@ public class CourseService {
         Course course = getCourseById(id);
         courseRepository.delete(course);
     }
+
+    public Page<Course> searchPublishedCourses(String keyword, Set<String> tags, Pageable pageable) {
+        if (keyword == null) keyword = "";
+
+        return courseRepository.searchPublishedCourses(keyword, tags == null || tags.isEmpty() ? null : tags, pageable);
+    }
+
+
 }
