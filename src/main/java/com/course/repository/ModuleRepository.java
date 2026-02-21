@@ -1,16 +1,16 @@
 package com.course.repository;
 
-import com.course.entity.Chapter;
+import com.course.entity.Module;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface ChapterRepository extends JpaRepository<Chapter, Long> {
+public interface ModuleRepository extends JpaRepository<Module, Long> {
 
-    List<Chapter> findByCourseId(Long courseId);
+    List<Module> findByCourseId(Long courseId);
 
-    @Query("SELECT MAX(c.displayOrder) FROM Chapter c WHERE c.course.id = :courseId")
+    @Query("SELECT MAX(m.displayOrder) FROM Module m WHERE m.course.id = :courseId")
     Integer findMaxDisplayOrderByCourseId(@Param("courseId") Long courseId);
 }

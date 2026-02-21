@@ -1,9 +1,15 @@
 package com.course.service;
 
-import com.course.dto.*;
-import com.course.entity.*;
+import com.course.dto.ChapterActionResponse;
+import com.course.dto.ChapterRequest;
+import com.course.dto.ChapterResponse;
+import com.course.entity.Chapter;
+import com.course.entity.Course;
+import com.course.enums.CourseStructure;
 import com.course.exception.ResourceNotFoundException;
-import com.course.repository.*;
+import com.course.exception.customException.InvalidCourseStructureException;
+import com.course.repository.ChapterRepository;
+import com.course.repository.CourseRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,15 +28,23 @@ public class ChapterService {
     }
 
     public ChapterActionResponse createChapter(Long courseId, ChapterRequest request) {
-
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
+        if (course.getCourseStructure()==null || course.getCourseStructure() != CourseStructure.CHAPTER) {
+            throw new InvalidCourseStructureException(
+                    "Chapters are not allowed for this course. Selected structure: " + course.getCourseStructure()
+            );
+        }
+
         Chapter chapter = new Chapter();
         chapter.setTitle(request.getTitle());
-        chapter.setDisplayOrder(request.getDisplayOrder());
-        chapter.setCourse(course);
 
+        // ✅ Auto-increment displayOrder
+        Integer maxOrder = chapterRepository.findMaxDisplayOrderByCourseId(courseId);
+        chapter.setDisplayOrder((maxOrder == null ? 0 : maxOrder) + 1);
+
+        chapter.setCourse(course);
         Chapter saved = chapterRepository.save(chapter);
 
         return new ChapterActionResponse(
@@ -40,7 +54,6 @@ public class ChapterService {
         );
     }
 
-    // ================= GET ALL =================
     public List<ChapterResponse> getChaptersByCourse(Long courseId) {
         return chapterRepository.findByCourseId(courseId)
                 .stream()
@@ -48,7 +61,6 @@ public class ChapterService {
                 .collect(Collectors.toList());
     }
 
-    // ================= GET ONE =================
     public ChapterResponse getChapterById(Long courseId, Long chapterId) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));
@@ -60,7 +72,6 @@ public class ChapterService {
         return new ChapterResponse(chapter.getId(), chapter.getTitle(), chapter.getDisplayOrder());
     }
 
-    // ================= UPDATE =================
     public ChapterActionResponse updateChapter(Long courseId, Long chapterId, ChapterRequest request) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));
@@ -70,8 +81,6 @@ public class ChapterService {
         }
 
         chapter.setTitle(request.getTitle());
-        chapter.setDisplayOrder(request.getDisplayOrder());
-
         Chapter updated = chapterRepository.save(chapter);
 
         return new ChapterActionResponse(
@@ -81,7 +90,6 @@ public class ChapterService {
         );
     }
 
-    // ================= DELETE =================
     public ChapterActionResponse deleteChapter(Long chapterId) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));

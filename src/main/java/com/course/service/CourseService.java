@@ -71,6 +71,7 @@ public class CourseService {
 
         course.setCatalogId(Long.valueOf(request.getCatalogId()));
         course.setTags(tags);
+        course.setCourseStructure(request.getCourseStructure());
 
         return courseRepository.save(course);
     }
@@ -95,6 +96,11 @@ public class CourseService {
                 throw new IllegalArgumentException("Invalid catalog id");
             }
             course.setCatalogId(Long.valueOf(request.getCatalogId()));
+        }
+
+        if (request.getCourseStructure() != null &&
+                request.getCourseStructure() != course.getCourseStructure()) {
+            throw new IllegalStateException("Course structure cannot be changed once created");
         }
 
         // Update basic fields

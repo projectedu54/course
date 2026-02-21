@@ -1,5 +1,7 @@
 package com.course.dto;
 
+import com.course.enums.CourseStructure;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -22,6 +24,15 @@ public class CourseRequest {
     private String catalogId;
 
     private Set<String> tags; // Optional
+
+    @NotNull(message = "Course structure is mandatory")
+    @Schema(
+            description = "Defines how course content is structured",
+            allowableValues = {"MODULE", "CHAPTER", "SECTION"},
+            example = "MODULE",
+            required = true
+    )
+    private CourseStructure courseStructure;
 
     // Getters and Setters
     public String getTitle() {
@@ -71,4 +82,8 @@ public class CourseRequest {
     public void setTags(Set<String> tags) {
         this.tags = tags;
     }
+
+    public CourseStructure getCourseStructure() {return courseStructure;}
+
+    public void setCourseStructure(CourseStructure courseStructure) {this.courseStructure = courseStructure;}
 }

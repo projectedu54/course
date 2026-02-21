@@ -1,5 +1,6 @@
 package com.course.entity;
 
+import com.course.enums.CourseStructure;
 import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.Set;
@@ -45,6 +46,10 @@ public class Course {
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, updatable = false)
+    private CourseStructure courseStructure;
+
     public Course() {}
 
     // Getters and setters
@@ -72,4 +77,8 @@ public class Course {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public CourseStructure getCourseStructure() { return courseStructure; }
+
+    public void setCourseStructure(CourseStructure courseStructure) { this.courseStructure = courseStructure; }
 }

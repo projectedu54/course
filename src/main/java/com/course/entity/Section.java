@@ -3,8 +3,8 @@ package com.course.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "chapter")
-public class Chapter {
+@Table(name = "section")
+public class Section {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
