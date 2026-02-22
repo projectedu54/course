@@ -9,6 +9,7 @@ import com.course.exception.ResourceNotFoundException;
 import com.course.exception.customException.InvalidContentException;
 import com.course.repository.ContentRepository;
 import com.course.repository.TopicRepository;
+import com.course.validation.ContentValidatorFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,23 +18,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.course.entity.ContentType.IMAGE;
+import static com.course.util.ContentValidationUtil.*;
 
 @Service
 public class ContentService {
 
     private final ContentRepository contentRepository;
     private final TopicRepository topicRepository;
+    private final ContentValidatorFactory validatorFactory;
+    private static final int MAX_TITLE_LENGTH = 150;
+    private static final int MAX_TEXT_LENGTH = 10_000;
 
-    public ContentService(ContentRepository contentRepository, TopicRepository topicRepository) {
+    public ContentService(ContentRepository contentRepository,
+                          TopicRepository topicRepository,
+                          ContentValidatorFactory validatorFactory) {
         this.contentRepository = contentRepository;
         this.topicRepository = topicRepository;
+        this.validatorFactory = validatorFactory;
     }
 
     // ================= CREATE =================
     public ContentResponse createContent(Long topicId, ContentRequest request) {
-
-        validateContentByType(request);   //
+// TODO : we can use ai powered pi to do check
+        validatorFactory
+                .getValidator(request.getContentType())
+                .validate(request);
 
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
@@ -168,31 +177,75 @@ public class ContentService {
     }
 
 
-    // TODO : validate text content like abusive, not good, bad word nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+
+
     private void validateContentByType(ContentRequest request) {
 
+        if (request == null) {
+            throw new InvalidContentException("Content request cannot be null");
+        }
+
+        // ================= COMMON VALIDATIONS =================
+        if (request.getTitle() == null || request.getTitle().isBlank()) {
+            throw new InvalidContentException("Title is required");
+        }
+
+        if (request.getTitle().length() > MAX_TITLE_LENGTH) {
+            throw new InvalidContentException(
+                    "Title cannot exceed " + MAX_TITLE_LENGTH + " characters"
+            );
+        }
+
+        if (request.getContentType() == null) {
+            throw new InvalidContentException("Content type is required");
+        }
+
+        // ================= TYPE SPECIFIC VALIDATIONS =================
         switch (request.getContentType()) {
 
-//
             case AUDIO:
-                if (request.getContentUrl() == null || request.getContentUrl().isBlank()) {
+                validateUrl(request.getContentUrl(), "AUDIO");
+                validateAudioFileExtension(request.getContentUrl());
+
+                if (hasText(request.getTextContent())) {
                     throw new InvalidContentException(
-                            request.getContentType() + " content requires contentUrl"
+                            "AUDIO content must not contain textContent"
                     );
                 }
-                if (request.getTextContent() != null && !request.getTextContent().isBlank()) {
+                break;
+
+            case IMAGE:
+                validateUrl(request.getContentUrl(), "IMAGE");
+                validateImageFileExtension(request.getContentUrl());
+
+                if (hasText(request.getTextContent())) {
                     throw new InvalidContentException(
-                            request.getContentType() + " content must not have textContent"
+                            "IMAGE content must not contain textContent"
                     );
                 }
                 break;
 
             case TEXT:
-                if (request.getTextContent() == null || request.getTextContent().isBlank()) {
+                if (!hasText(request.getTextContent())) {
                     throw new InvalidContentException("TEXT content requires textContent");
                 }
-                if (request.getContentUrl() != null && !request.getContentUrl().isBlank()) {
-                    throw new InvalidContentException("TEXT content must not have contentUrl");
+
+                if (request.getTextContent().length() > MAX_TEXT_LENGTH) {
+                    throw new InvalidContentException(
+                            "Text content cannot exceed " + MAX_TEXT_LENGTH + " characters"
+                    );
+                }
+
+                if (containsProfanity(request.getTextContent())) {
+                    throw new InvalidContentException(
+                            "Text content contains inappropriate language"
+                    );
+                }
+
+                if (hasText(request.getContentUrl())) {
+                    throw new InvalidContentException(
+                            "TEXT content must not have contentUrl"
+                    );
                 }
                 break;
 
