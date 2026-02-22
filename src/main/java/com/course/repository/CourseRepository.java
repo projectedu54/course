@@ -25,4 +25,5 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             Set<String> tags,
             Pageable pageable
     );
+    boolean existsByTitleIgnoreCaseAndCreatedBy(String title, Long createdBy);
 }

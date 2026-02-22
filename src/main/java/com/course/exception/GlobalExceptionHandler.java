@@ -1,6 +1,7 @@
 package com.course.exception;
 
 import com.course.api.ApiResponse;
+import com.course.exception.customException.CourseServiceException;
 import com.course.exception.customException.InvalidContentException;
 import com.course.exception.customException.InvalidCourseStructureException;
 import org.springframework.http.HttpStatus;
@@ -85,6 +86,19 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(
+                        false,
+                        ex.getMessage(),
+                        null
+                ));
+    }
+
+    // Handle CourseServiceException with custom status
+    @ExceptionHandler(CourseServiceException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCourseServiceException(CourseServiceException ex) {
+        // Use the status provided by the exception
+        return ResponseEntity
+                .status(ex.getStatus())
                 .body(new ApiResponse<>(
                         false,
                         ex.getMessage(),

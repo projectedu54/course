@@ -6,11 +6,14 @@ import com.course.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/courses")
@@ -23,62 +26,77 @@ public class CourseController {
         this.courseService = courseService;
     }
 
-    // Create course
+    // =============================
+    // CREATE COURSE
+    // =============================
     @PostMapping
-    @Operation(
-            summary = "Create a new course",
-            description = "Creates a course with title, description, type, status, catalog, and tags"
-    )
-    public ResponseEntity<Course> createCourse(@Valid @RequestBody CourseRequest request) {
-        Course course = courseService.createCourse(request);
+    @Operation(summary = "Create a new course")
+    public ResponseEntity<Course> createCourse(
+            @RequestHeader("X-USER-ID") Long userId,
+            @Valid @RequestBody CourseRequest request) {
+
+        Course course = courseService.createCourse(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(course);
     }
 
-    // Get course by ID
+    // =============================
+    // GET COURSE BY ID
+    // =============================
     @GetMapping("/{id}")
-    @Operation(
-            summary = "Get course by ID",
-            description = "Retrieve a single course by its unique ID"
-    )
+    @Operation(summary = "Get course by id")
     public ResponseEntity<Course> getCourse(@PathVariable Long id) {
-        Course course = courseService.getCourseById(id);
-        return ResponseEntity.ok(course);
+        return ResponseEntity.ok(courseService.getCourseById(id));
     }
 
-    // Get all courses
+    // =============================
+    // GET ALL COURSES
+    // =============================
     @GetMapping
-    @Operation(
-            summary = "Get all courses",
-            description = "Retrieve a list of all courses"
-    )
+    @Operation(summary = "Get all course")
     public ResponseEntity<List<Course>> getAllCourses() {
-        List<Course> courses = courseService.getAllCourses();
-        return ResponseEntity.ok(courses);
+        return ResponseEntity.ok(courseService.getAllCourses());
     }
 
-    // Update course
+    // =============================
+    // UPDATE COURSE
+    // =============================
     @PutMapping("/{id}")
-    @Operation(
-            summary = "Update course",
-            description = "Update course details by ID. Only fields provided in the request will be updated"
-    )
-    public ResponseEntity<Course> updateCourse(@PathVariable Long id,
-                                               @RequestBody CourseRequest request) {
-        Course updatedCourse = courseService.updateCourse(id, request);
-        return ResponseEntity.ok(updatedCourse);
+    @Operation(summary = "Update course")
+    public ResponseEntity<Course> updateCourse(
+            @PathVariable Long id,
+            @RequestHeader("X-USER-ID") Long userId,
+            @RequestBody CourseRequest request) {
+
+        return ResponseEntity.ok(
+                courseService.updateCourse(id, request, userId)
+        );
     }
 
-    // Delete course
+    // =============================
+    // DELETE COURSE
+    // =============================
     @DeleteMapping("/{id}")
-    @Operation(
-            summary = "Delete course",
-            description = "Deletes a course by its ID"
-    )
-    public ResponseEntity<Void> deleteCourse(@PathVariable Long id) {
-        courseService.deleteCourse(id);
+    @Operation(summary = "Delete course using course id and user id")
+    public ResponseEntity<Void> deleteCourse(
+            @PathVariable Long id,
+            @RequestHeader("X-USER-ID") Long userId) {
+
+        courseService.deleteCourse(id, userId);
         return ResponseEntity.noContent().build();
     }
 
+    // =============================
+    // SEARCH PUBLISHED COURSES
+    // =============================
+    @GetMapping("/search")
+    @Operation(summary = "Search published course")
+    public ResponseEntity<Page<Course>> searchCourses(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Set<String> tags,
+            Pageable pageable) {
 
-
+        return ResponseEntity.ok(
+                courseService.searchPublishedCourses(keyword, tags, pageable)
+        );
+    }
 }

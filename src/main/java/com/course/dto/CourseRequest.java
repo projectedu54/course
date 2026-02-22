@@ -4,6 +4,7 @@ import com.course.enums.CourseStructure;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
 
@@ -21,7 +22,12 @@ public class CourseRequest {
     private String status;
 
     @NotBlank(message = "Catalog ID is mandatory")
-    private String catalogId;
+    @Schema(
+            description = "ID of the catalog this course belongs to (numeric string)",
+            example = "123",
+            required = true
+    )
+    private Integer catalogId;
 
     private Set<String> tags; // Optional
 
@@ -67,11 +73,11 @@ public class CourseRequest {
         this.status = status;
     }
 
-    public String getCatalogId() {
+    public Integer getCatalogId() {
         return catalogId;
     }
 
-    public void setCatalogId(String catalogId) {
+    public void setCatalogId(Integer catalogId) {
         this.catalogId = catalogId;
     }
 

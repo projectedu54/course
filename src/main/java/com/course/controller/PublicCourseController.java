@@ -2,7 +2,6 @@ package com.course.controller;
 
 import com.course.api.ApiResponse;
 import com.course.dto.CourseResponse;
-import com.course.entity.Course;
 import com.course.mapper.CourseMapper;
 import com.course.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
