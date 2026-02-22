@@ -45,7 +45,7 @@ public class Course {
 
     @ManyToMany
     @JoinTable(
-            name = "course_tag",
+            name = "course_tag_tbl",
             joinColumns = @JoinColumn(name = "course_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id")
     )

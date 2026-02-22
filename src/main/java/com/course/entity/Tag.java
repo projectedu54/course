@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(
-        name = "tag",
+        name = "tag_tbl",
         indexes = {
                 @Index(name = "idx_tag_name", columnList = "name")
         }

@@ -45,7 +45,8 @@ public class CourseService {
             exists = catalogClient.exists(String.valueOf(request.getCatalogId()));
         } catch (Exception e) {
             throw new CourseServiceException(
-                    "Cannot create course because Catalog service is unavailable", HttpStatus.SERVICE_UNAVAILABLE.value()
+                    "Cannot create course because Catalog service is unavailable",
+                    HttpStatus.SERVICE_UNAVAILABLE.value()
             );
         }
 
@@ -65,15 +66,8 @@ public class CourseService {
             );
         }
 
-        // Handle tags
-        Set<Tag> tags = new HashSet<>();
-        if (request.getTags() != null) {
-            for (String tagName : request.getTags()) {
-                Tag tag = tagRepository.findByName(tagName)
-                        .orElseGet(() -> tagRepository.save(new Tag(tagName)));
-                tags.add(tag);
-            }
-        }
+        // Handle tags efficiently
+        Set<Tag> tags = handleTagsBulk(request.getTags());
 
         // Create course
         Course course = new Course();
@@ -129,11 +123,9 @@ public class CourseService {
             try {
                 exists = catalogClient.exists(String.valueOf(request.getCatalogId()));
             } catch (Exception e) {
-                // Log the issue if you have a logger
-                // logger.warn("Catalog service unavailable", e);
                 throw new CourseServiceException(
                         "Catalog service is currently unavailable. Please try again later.",
-                        HttpStatus.SERVICE_UNAVAILABLE.value() // HTTP status 503 Service Unavailable
+                        HttpStatus.SERVICE_UNAVAILABLE.value()
                 );
             }
 
@@ -163,7 +155,6 @@ public class CourseService {
             course.setTitle(request.getTitle());
         }
 
-
         if (request.getDescription() != null)
             course.setDescription(request.getDescription());
 
@@ -173,14 +164,9 @@ public class CourseService {
         if (request.getStatus() != null)
             course.setStatus(CourseStatus.valueOf(request.getStatus()));
 
-        // Update tags
+        // Update tags efficiently
         if (request.getTags() != null) {
-            Set<Tag> tags = new HashSet<>();
-            for (String tagName : request.getTags()) {
-                Tag tag = tagRepository.findByName(tagName)
-                        .orElseGet(() -> tagRepository.save(new Tag(tagName)));
-                tags.add(tag);
-            }
+            Set<Tag> tags = handleTagsBulk(request.getTags());
             course.setTags(tags);
         }
 
@@ -218,5 +204,43 @@ public class CourseService {
                 tags == null || tags.isEmpty() ? null : tags,
                 pageable
         );
+    }
+
+    // =============================
+    // HELPER: Bulk insert tags using DB upsert
+    // =============================
+    private Set<Tag> handleTagsBulk(Set<String> tagNames) {
+
+        if (tagNames == null || tagNames.isEmpty()) {
+            return new HashSet<>();
+        }
+
+        // 1️⃣ Fetch existing tags
+        List<Tag> existingTags = tagRepository.findByNameIn(tagNames);
+
+        Set<String> existingNames = new HashSet<>();
+        for (Tag tag : existingTags) {
+            existingNames.add(tag.getName());
+        }
+
+        // 2️⃣ Prepare new tags
+        Set<Tag> newTags = new HashSet<>();
+        for (String name : tagNames) {
+            if (!existingNames.contains(name)) {
+                newTags.add(new Tag(name));
+            }
+        }
+
+        // 3️⃣ Save new tags in batch
+        if (!newTags.isEmpty()) {
+            try {
+                tagRepository.saveAll(newTags);
+            } catch (Exception ignored) {
+                // In case of race condition, ignore and re-fetch
+            }
+        }
+
+        // 4️⃣ Fetch again to ensure we have all tags
+        return new HashSet<>(tagRepository.findByNameIn(tagNames));
     }
 }

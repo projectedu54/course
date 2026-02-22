@@ -2,10 +2,8 @@ package com.course.dto;
 
 import com.course.enums.CourseStructure;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
+
 import java.util.Set;
 
 public class CourseRequest {
@@ -21,12 +19,8 @@ public class CourseRequest {
 
     private String status;
 
-    @NotBlank(message = "Catalog ID is mandatory")
-    @Schema(
-            description = "ID of the catalog this course belongs to (numeric string)",
-            example = "123",
-            required = true
-    )
+    @NotNull(message = "Catalog ID is mandatory")
+    @Min(value = 1, message = "Catalog ID must be greater than 0")
     private Integer catalogId;
 
     private Set<String> tags; // Optional
