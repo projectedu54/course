@@ -26,10 +26,8 @@ public class ContentController {
 
     // ================= CREATE =================
     @PostMapping
-    @Operation(
-            summary = "Add new content to a topic",
-            description = "Creates content under a topic. Display order is auto-incremented."
-    )
+    @Operation(summary = "Add new content to a topic",
+            description = "Creates content under a topic. Display order is auto-incremented.")
     public ResponseEntity<ContentResponse> createContent(
             @PathVariable Long topicId,
             @Valid @RequestBody ContentRequest request) {
@@ -40,10 +38,8 @@ public class ContentController {
 
     // ================= GET ALL =================
     @GetMapping
-    @Operation(
-            summary = "Get all contents of a topic",
-            description = "Returns all contents sorted by display order."
-    )
+    @Operation(summary = "Get all contents of a topic",
+            description = "Returns all contents sorted by display order.")
     public ResponseEntity<List<ContentResponse>> getContents(@PathVariable Long topicId) {
         List<ContentResponse> contents = contentService.getContentsByTopic(topicId);
         return ResponseEntity.ok(contents);
@@ -56,25 +52,20 @@ public class ContentController {
             @PathVariable Long topicId,
             @PathVariable Long contentId) {
 
-        // Optional: implement getById in service if needed
-        List<ContentResponse> allContents = contentService.getContentsByTopic(topicId);
-        ContentResponse content = allContents.stream()
-                .filter(c -> c.getId().equals(contentId))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Content not found")); // Can create ResourceNotFoundException
+        ContentResponse content = contentService.getContentById(topicId, contentId);
         return ResponseEntity.ok(content);
     }
 
     // ================= UPDATE =================
     @PutMapping("/{contentId}")
-    @Operation(summary = "Update content", description = "Updates content title, type, URL, or text")
+    @Operation(summary = "Update content", description = "Updates content title, type, URL, text or description")
     public ResponseEntity<ContentResponse> updateContent(
             @PathVariable Long topicId,
             @PathVariable Long contentId,
             @Valid @RequestBody ContentRequest request) {
 
-        // Optional: implement update in service
-        throw new UnsupportedOperationException("Update content not implemented yet");
+        ContentResponse updated = contentService.updateContent(topicId, contentId, request);
+        return ResponseEntity.ok(updated);
     }
 
     // ================= DELETE =================
@@ -84,16 +75,14 @@ public class ContentController {
             @PathVariable Long topicId,
             @PathVariable Long contentId) {
 
-        // Optional: implement delete in service
-        throw new UnsupportedOperationException("Delete content not implemented yet");
+        contentService.deleteContent(topicId, contentId);
+        return ResponseEntity.noContent().build();
     }
 
     // ================= REORDER =================
     @PutMapping("/reorder")
-    @Operation(
-            summary = "Reorder contents (Drag & Drop)",
-            description = "Reorders contents based on UI drag-and-drop order"
-    )
+    @Operation(summary = "Reorder contents (Drag & Drop)",
+            description = "Reorders contents based on UI drag-and-drop order")
     public ResponseEntity<Void> reorderContents(
             @PathVariable Long topicId,
             @Valid @RequestBody ContentReorderRequest request) {
