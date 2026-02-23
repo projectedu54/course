@@ -6,6 +6,7 @@ import com.course.dto.TopicResponse;
 import com.course.entity.*;
 import com.course.entity.Module;
 import com.course.exception.ResourceNotFoundException;
+import com.course.exception.customException.DuplicateTopicTitleException;
 import com.course.exception.customException.InvalidTopicParentException;
 import com.course.repository.*;
 import org.springframework.stereotype.Service;
@@ -39,15 +40,20 @@ public class TopicService {
 
         Topic topic = new Topic();
         topic.setTitle(request.getTitle());
+        topic.setDescription(request.getDescription());
 
         // Determine parent
         switch (parentType.toUpperCase()) {
             case "COURSE":
                 Course course = courseRepository.findById(parentId)
                         .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
-                topic.setCourse(course);
 
-                // Auto-increment display_order
+                // Duplicate title check
+                if (topicRepository.existsByTitleAndCourseId(request.getTitle(), parentId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this course");
+                }
+
+                topic.setCourse(course);
                 Integer maxOrderCourse = topicRepository.findMaxDisplayOrderByCourseId(parentId);
                 topic.setDisplayOrder((maxOrderCourse == null ? 0 : maxOrderCourse) + 1);
                 break;
@@ -55,8 +61,11 @@ public class TopicService {
             case "MODULE":
                 Module module = moduleRepository.findById(parentId)
                         .orElseThrow(() -> new ResourceNotFoundException("Module not found"));
-                topic.setModule(module);
 
+                if (topicRepository.existsByTitleAndModuleId(request.getTitle(), parentId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this module");
+                }
+                topic.setModule(module);
                 Integer maxOrderModule = topicRepository.findMaxDisplayOrderByModuleId(parentId);
                 topic.setDisplayOrder((maxOrderModule == null ? 0 : maxOrderModule) + 1);
                 break;
@@ -64,8 +73,11 @@ public class TopicService {
             case "CHAPTER":
                 Chapter chapter = chapterRepository.findById(parentId)
                         .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));
-                topic.setChapter(chapter);
 
+                if (topicRepository.existsByTitleAndChapterId(request.getTitle(), parentId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this chapter");
+                }
+                topic.setChapter(chapter);
                 Integer maxOrderChapter = topicRepository.findMaxDisplayOrderByChapterId(parentId);
                 topic.setDisplayOrder((maxOrderChapter == null ? 0 : maxOrderChapter) + 1);
                 break;
@@ -73,8 +85,11 @@ public class TopicService {
             case "SECTION":
                 Section section = sectionRepository.findById(parentId)
                         .orElseThrow(() -> new ResourceNotFoundException("Section not found"));
-                topic.setSection(section);
 
+                if (topicRepository.existsByTitleAndSectionId(request.getTitle(), parentId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this section");
+                }
+                topic.setSection(section);
                 Integer maxOrderSection = topicRepository.findMaxDisplayOrderBySectionId(parentId);
                 topic.setDisplayOrder((maxOrderSection == null ? 0 : maxOrderSection) + 1);
                 break;
@@ -93,7 +108,8 @@ public class TopicService {
                         saved.getTitle(),
                         saved.getDisplayOrder(),
                         parentType.toUpperCase(),
-                        parentId
+                        parentId,
+                        saved.getDescription()
                 )
         );
     }
@@ -125,7 +141,8 @@ public class TopicService {
                         t.getTitle(),
                         t.getDisplayOrder(),
                         parentType.toUpperCase(),
-                        parentId
+                        parentId,
+                        t.getDescription()
                 ))
                 .collect(Collectors.toList());
     }
@@ -160,7 +177,8 @@ public class TopicService {
                 topic.getTitle(),
                 topic.getDisplayOrder(),
                 parentType.toUpperCase(),
-                parentId
+                parentId,
+                topic.getDescription()
         );
     }
 
@@ -172,7 +190,33 @@ public class TopicService {
         // Validate parent
         getTopicById(parentId, parentType, topicId);
 
+        switch (parentType.toUpperCase()) {
+            case "COURSE":
+                if (topicRepository.existsByTitleAndCourseIdAndIdNot(request.getTitle(), parentId, topicId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this course");
+                }
+                break;
+            case "MODULE":
+                if (topicRepository.existsByTitleAndModuleIdAndIdNot(request.getTitle(), parentId, topicId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this module");
+                }
+                break;
+            case "CHAPTER":
+                if (topicRepository.existsByTitleAndChapterIdAndIdNot(request.getTitle(), parentId, topicId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this chapter");
+                }
+                break;
+            case "SECTION":
+                if (topicRepository.existsByTitleAndSectionIdAndIdNot(request.getTitle(), parentId, topicId)) {
+                    throw new DuplicateTopicTitleException("Topic title already exists for this section");
+                }
+                break;
+            default:
+                throw new InvalidTopicParentException("Invalid parent type: " + parentType);
+        }
+
         topic.setTitle(request.getTitle());
+        topic.setDescription(request.getDescription());
         Topic updated = topicRepository.save(topic);
 
         return new TopicActionResponse(
@@ -183,7 +227,8 @@ public class TopicService {
                         updated.getTitle(),
                         updated.getDisplayOrder(),
                         parentType.toUpperCase(),
-                        parentId
+                        parentId,
+                        updated.getDescription()
                 )
         );
     }

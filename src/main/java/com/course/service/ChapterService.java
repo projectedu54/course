@@ -7,6 +7,7 @@ import com.course.entity.Chapter;
 import com.course.entity.Course;
 import com.course.enums.CourseStructure;
 import com.course.exception.ResourceNotFoundException;
+import com.course.exception.customException.DuplicateTitleException;
 import com.course.exception.customException.InvalidCourseStructureException;
 import com.course.repository.ChapterRepository;
 import com.course.repository.CourseRepository;
@@ -27,21 +28,27 @@ public class ChapterService {
         this.courseRepository = courseRepository;
     }
 
+    // ================= CREATE =================
     public ChapterActionResponse createChapter(Long courseId, ChapterRequest request) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
-        if (course.getCourseStructure()==null || course.getCourseStructure() != CourseStructure.CHAPTER) {
+        if (course.getCourseStructure() == null || course.getCourseStructure() != CourseStructure.CHAPTER) {
             throw new InvalidCourseStructureException(
                     "Chapters are not allowed for this course. Selected structure: " + course.getCourseStructure()
             );
+        }
+
+        //  Duplicate title check
+        if (chapterRepository.existsByCourseIdAndTitle(courseId, request.getTitle())) {
+            throw new DuplicateTitleException("Chapter with title '" + request.getTitle() + "' already exists in this course");
         }
 
         Chapter chapter = new Chapter();
         chapter.setTitle(request.getTitle());
         chapter.setDescription(request.getDescription());
 
-        // ✅ Auto-increment displayOrder
+        // Auto-increment displayOrder
         Integer maxOrder = chapterRepository.findMaxDisplayOrderByCourseId(courseId);
         chapter.setDisplayOrder((maxOrder == null ? 0 : maxOrder) + 1);
 
@@ -51,17 +58,19 @@ public class ChapterService {
         return new ChapterActionResponse(
                 "Chapter added to course successfully",
                 courseId,
-                new ChapterResponse(saved.getId(), saved.getTitle(),saved.getDisplayOrder(), saved.getDescription())
+                new ChapterResponse(saved.getId(), saved.getTitle(), saved.getDisplayOrder(), saved.getDescription())
         );
     }
 
+    // ================= GET ALL =================
     public List<ChapterResponse> getChaptersByCourse(Long courseId) {
         return chapterRepository.findByCourseId(courseId)
                 .stream()
-                .map(c -> new ChapterResponse(c.getId(), c.getTitle(), c.getDisplayOrder(),c.getDescription()))
+                .map(c -> new ChapterResponse(c.getId(), c.getTitle(), c.getDisplayOrder(), c.getDescription()))
                 .collect(Collectors.toList());
     }
 
+    // ================= GET BY ID =================
     public ChapterResponse getChapterById(Long courseId, Long chapterId) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));
@@ -73,12 +82,18 @@ public class ChapterService {
         return new ChapterResponse(chapter.getId(), chapter.getTitle(), chapter.getDisplayOrder(), chapter.getDescription());
     }
 
+    // ================= UPDATE =================
     public ChapterActionResponse updateChapter(Long courseId, Long chapterId, ChapterRequest request) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));
 
         if (!chapter.getCourse().getId().equals(courseId)) {
             throw new ResourceNotFoundException("Chapter does not belong to the course");
+        }
+
+        //  Duplicate title check excluding current chapter
+        if (chapterRepository.existsByCourseIdAndTitleAndIdNot(courseId, request.getTitle(), chapterId)) {
+            throw new DuplicateTitleException("Chapter with title '" + request.getTitle() + "' already exists in this course");
         }
 
         chapter.setTitle(request.getTitle());
@@ -88,10 +103,11 @@ public class ChapterService {
         return new ChapterActionResponse(
                 "Chapter updated successfully",
                 courseId,
-                new ChapterResponse(updated.getId(), updated.getTitle(), updated.getDisplayOrder(),updated.getDescription())
+                new ChapterResponse(updated.getId(), updated.getTitle(), updated.getDisplayOrder(), updated.getDescription())
         );
     }
 
+    // ================= DELETE =================
     public ChapterActionResponse deleteChapter(Long chapterId) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chapter not found"));

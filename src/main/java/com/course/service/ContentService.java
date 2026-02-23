@@ -18,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.course.util.ContentValidationUtil.*;
-
 @Service
 public class ContentService {
 
@@ -39,16 +37,21 @@ public class ContentService {
 
     // ================= CREATE =================
     public ContentResponse createContent(Long topicId, ContentRequest request) {
-// TODO : we can use ai powered pi to do check
-        validatorFactory
-                .getValidator(request.getContentType())
-                .validate(request);
+        validateContentByType(request);
 
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
 
+        // 🔹 Duplicate title check
+        if (contentRepository.existsByTopicIdAndTitle(topicId, request.getTitle())) {
+            throw new InvalidContentException(
+                    "Content with title '" + request.getTitle() + "' already exists in this topic"
+            );
+        }
+
         Content content = new Content();
         content.setTitle(request.getTitle());
+        content.setDescription(request.getDescription());
         content.setContentType(request.getContentType());
         content.setContentUrl(request.getContentUrl());
         content.setTextContent(request.getTextContent());
@@ -58,16 +61,14 @@ public class ContentService {
         content.setDisplayOrder((maxOrder == null ? 0 : maxOrder) + 1);
 
         content.setCreatedAt(LocalDateTime.now());
-        content.setUpdatedAt(LocalDateTime.now());
+        content.setUpdatedAt(null); // no updatedAt at creation
 
         Content saved = contentRepository.save(content);
         return mapToResponse(saved);
     }
 
-
     // ================= GET ALL =================
     public List<ContentResponse> getContentsByTopic(Long topicId) {
-
         topicRepository.findById(topicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
 
@@ -79,7 +80,6 @@ public class ContentService {
 
     // ================= GET BY ID =================
     public ContentResponse getContentById(Long topicId, Long contentId) {
-
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Content not found"));
 
@@ -90,8 +90,7 @@ public class ContentService {
 
     // ================= UPDATE =================
     public ContentResponse updateContent(Long topicId, Long contentId, ContentRequest request) {
-
-        validateContentByType(request);   //
+        validateContentByType(request);
 
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Content not found"));
@@ -100,7 +99,15 @@ public class ContentService {
             throw new ResourceNotFoundException("Content does not belong to the topic");
         }
 
+        // 🔹 Duplicate title check excluding current content
+        if (contentRepository.existsByTopicIdAndTitleAndIdNot(topicId, request.getTitle(), contentId)) {
+            throw new InvalidContentException(
+                    "Another content with title '" + request.getTitle() + "' already exists in this topic"
+            );
+        }
+
         content.setTitle(request.getTitle());
+        content.setDescription(request.getDescription());
         content.setContentType(request.getContentType());
         content.setContentUrl(request.getContentUrl());
         content.setTextContent(request.getTextContent());
@@ -110,10 +117,8 @@ public class ContentService {
         return mapToResponse(updated);
     }
 
-
     // ================= DELETE =================
     public void deleteContent(Long topicId, Long contentId) {
-
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Content not found"));
 
@@ -121,29 +126,9 @@ public class ContentService {
         contentRepository.delete(content);
     }
 
-    // ================= HELPERS =================
-    private void validateTopic(Content content, Long topicId) {
-        if (!content.getTopic().getId().equals(topicId)) {
-            throw new ResourceNotFoundException("Content does not belong to the topic");
-        }
-    }
-
-    private ContentResponse mapToResponse(Content c) {
-        return new ContentResponse(
-                c.getId(),
-                c.getTitle(),
-                c.getContentType(),
-                c.getContentUrl(),
-                c.getTextContent(),
-                c.getDisplayOrder(),
-                c.getTopic().getId()
-        );
-    }
-
     // ================= REORDER (DRAG & DROP) =================
     @Transactional
     public void reorderContents(Long topicId, ContentReorderRequest request) {
-
         List<Content> contents = contentRepository.findByTopicId(topicId);
 
         if (contents.isEmpty()) {
@@ -161,14 +146,12 @@ public class ContentService {
 
         int order = 1;
         for (Long contentId : request.getOrderedContentIds()) {
-
             Content content = contentMap.get(contentId);
             if (content == null) {
                 throw new IllegalArgumentException(
                         "Invalid content id for this topic: " + contentId
                 );
             }
-
             content.setDisplayOrder(order++);
             content.setUpdatedAt(LocalDateTime.now());
         }
@@ -176,16 +159,32 @@ public class ContentService {
         contentRepository.saveAll(contents);
     }
 
+    // ================= HELPERS =================
+    private void validateTopic(Content content, Long topicId) {
+        if (!content.getTopic().getId().equals(topicId)) {
+            throw new ResourceNotFoundException("Content does not belong to the topic");
+        }
+    }
 
+    private ContentResponse mapToResponse(Content c) {
+        return new ContentResponse(
+                c.getId(),
+                c.getTitle(),
+                c.getContentType(),
+                c.getContentUrl(),
+                c.getTextContent(),
+                c.getDisplayOrder(),
+                c.getTopic().getId(),
+                c.getDescription()
+        );
+    }
 
-
+    // ================= VALIDATION =================
     private void validateContentByType(ContentRequest request) {
-
         if (request == null) {
             throw new InvalidContentException("Content request cannot be null");
         }
 
-        // ================= COMMON VALIDATIONS =================
         if (request.getTitle() == null || request.getTitle().isBlank()) {
             throw new InvalidContentException("Title is required");
         }
@@ -200,64 +199,8 @@ public class ContentService {
             throw new InvalidContentException("Content type is required");
         }
 
-        // ================= TYPE SPECIFIC VALIDATIONS =================
-        switch (request.getContentType()) {
-
-            case AUDIO:
-                validateUrl(request.getContentUrl(), "AUDIO");
-                validateAudioFileExtension(request.getContentUrl());
-
-                if (hasText(request.getTextContent())) {
-                    throw new InvalidContentException(
-                            "AUDIO content must not contain textContent"
-                    );
-                }
-                break;
-
-            case IMAGE:
-                validateUrl(request.getContentUrl(), "IMAGE");
-                validateImageFileExtension(request.getContentUrl());
-
-                if (hasText(request.getTextContent())) {
-                    throw new InvalidContentException(
-                            "IMAGE content must not contain textContent"
-                    );
-                }
-                break;
-
-            case TEXT:
-                if (!hasText(request.getTextContent())) {
-                    throw new InvalidContentException("TEXT content requires textContent");
-                }
-
-                if (request.getTextContent().length() > MAX_TEXT_LENGTH) {
-                    throw new InvalidContentException(
-                            "Text content cannot exceed " + MAX_TEXT_LENGTH + " characters"
-                    );
-                }
-
-                if (containsProfanity(request.getTextContent())) {
-                    throw new InvalidContentException(
-                            "Text content contains inappropriate language"
-                    );
-                }
-
-                if (hasText(request.getContentUrl())) {
-                    throw new InvalidContentException(
-                            "TEXT content must not have contentUrl"
-                    );
-                }
-                break;
-
-            case QUIZ:
-                throw new InvalidContentException(
-                        "QUIZ content must be created via Quiz API"
-                );
-
-            default:
-                throw new InvalidContentException("Unsupported content type");
-        }
+        // Type-specific validations (TEXT, AUDIO, IMAGE, etc.)
+        validatorFactory.getValidator(request.getContentType()).validate(request);
     }
-
 
 }

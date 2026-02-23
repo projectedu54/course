@@ -11,10 +11,11 @@ public class ContentResponse {
     private String textContent;
     private Integer displayOrder;
     private Long topicId;
+    private String description;
 
     public ContentResponse(Long id, String title, ContentType contentType,
                            String contentUrl, String textContent,
-                           Integer displayOrder, Long topicId) {
+                           Integer displayOrder, Long topicId,String description) {
         this.id = id;
         this.title = title;
         this.contentType = contentType;
@@ -22,6 +23,7 @@ public class ContentResponse {
         this.textContent = textContent;
         this.displayOrder = displayOrder;
         this.topicId = topicId;
+        this.description  = description;
     }
 
     // Getters & Setters
@@ -45,4 +47,12 @@ public class ContentResponse {
 
     public Long getTopicId() { return topicId; }
     public void setTopicId(Long topicId) { this.topicId = topicId; }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
 }

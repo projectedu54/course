@@ -9,15 +9,19 @@ public class ContentRequest {
     @NotBlank(message = "Title is required")
     private String title;
 
+    private String description;
+
     @NotNull(message = "Content type is required")
     private ContentType contentType;
 
     private String contentUrl;   // video/pdf/audio/image
     private String textContent;  // text/article
 
-    // Getters & Setters
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
     public ContentType getContentType() { return contentType; }
     public void setContentType(ContentType contentType) { this.contentType = contentType; }

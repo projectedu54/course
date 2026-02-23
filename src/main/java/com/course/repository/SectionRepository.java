@@ -13,4 +13,8 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
 
     @Query("SELECT MAX(s.displayOrder) FROM Section s WHERE s.course.id = :courseId")
     Integer findMaxDisplayOrderByCourseId(@Param("courseId") Long courseId);
+
+    boolean existsByCourseIdAndTitle(Long courseId, String title);
+
+    boolean existsByCourseIdAndTitleAndIdNot(Long courseId, String title, Long id);
 }

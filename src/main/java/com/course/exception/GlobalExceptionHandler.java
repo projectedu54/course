@@ -1,9 +1,7 @@
 package com.course.exception;
 
 import com.course.api.ApiResponse;
-import com.course.exception.customException.CourseServiceException;
-import com.course.exception.customException.InvalidContentException;
-import com.course.exception.customException.InvalidCourseStructureException;
+import com.course.exception.customException.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -104,6 +102,21 @@ public class GlobalExceptionHandler {
                         ex.getMessage(),
                         null
                 ));
+    }
+
+    @ExceptionHandler(DuplicateTopicTitleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateTopicTitle(DuplicateTopicTitleException ex) {
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+
+    // Handle DuplicateTitleException
+    @ExceptionHandler(DuplicateTitleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateTitle(DuplicateTitleException ex) {
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(new ApiResponse<>(false, ex.getMessage(), null));
     }
 
 }

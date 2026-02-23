@@ -14,4 +14,10 @@ public interface ContentRepository extends JpaRepository<Content, Long> {
 
     @Query("SELECT MAX(c.displayOrder) FROM Content c WHERE c.topic.id = :topicId")
     Integer findMaxDisplayOrderByTopic(Long topicId);
+
+    // Duplicate title check for create
+    boolean existsByTopicIdAndTitle(Long topicId, String title);
+
+    // Duplicate title check for update (exclude current content)
+    boolean existsByTopicIdAndTitleAndIdNot(Long topicId, String title, Long id);
 }

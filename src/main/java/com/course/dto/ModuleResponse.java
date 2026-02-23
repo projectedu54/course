@@ -5,11 +5,13 @@ public class ModuleResponse {
     private Long id;
     private String title;
     private Integer displayOrder;
+    private String description;
 
-    public ModuleResponse(Long id, String title, Integer displayOrder) {
+    public ModuleResponse(Long id, String title, Integer displayOrder,String description) {
         this.id = id;
         this.title = title;
         this.displayOrder = displayOrder;
+        this.description  = description;
     }
 
     public Long getId() { return id; }
@@ -20,4 +22,12 @@ public class ModuleResponse {
 
     public Integer getDisplayOrder() { return displayOrder; }
     public void setDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
 }

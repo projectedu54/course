@@ -7,13 +7,16 @@ public class TopicResponse {
     private Integer displayOrder;
     private String parentType;
     private Long parentId;
+    private String description;
 
-    public TopicResponse(Long id, String title, Integer displayOrder, String parentType, Long parentId) {
+    public TopicResponse(Long id, String title, Integer displayOrder, String parentType,
+                         Long parentId, String description) {
         this.id = id;
         this.title = title;
         this.displayOrder = displayOrder;
         this.parentType = parentType;
         this.parentId = parentId;
+        this.description=description;
     }
 
     public Long getId() { return id; }
@@ -30,4 +33,12 @@ public class TopicResponse {
 
     public Long getParentId() { return parentId; }
     public void setParentId(Long parentId) { this.parentId = parentId; }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
 }

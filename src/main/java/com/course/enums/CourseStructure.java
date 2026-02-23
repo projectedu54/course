@@ -1,5 +1,6 @@
 package com.course.enums;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(
@@ -15,5 +16,10 @@ public enum CourseStructure {
     CHAPTER,
 
     @Schema(description = "Course contains sections")
-    SECTION
+    SECTION;
+
+    @JsonCreator
+    public static CourseStructure from(String value) {
+        return CourseStructure.valueOf(value.toUpperCase());
+    }
 }
