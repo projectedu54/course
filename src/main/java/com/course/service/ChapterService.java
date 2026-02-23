@@ -39,6 +39,7 @@ public class ChapterService {
 
         Chapter chapter = new Chapter();
         chapter.setTitle(request.getTitle());
+        chapter.setDescription(request.getDescription());
 
         // ✅ Auto-increment displayOrder
         Integer maxOrder = chapterRepository.findMaxDisplayOrderByCourseId(courseId);
@@ -50,14 +51,14 @@ public class ChapterService {
         return new ChapterActionResponse(
                 "Chapter added to course successfully",
                 courseId,
-                new ChapterResponse(saved.getId(), saved.getTitle(), saved.getDisplayOrder())
+                new ChapterResponse(saved.getId(), saved.getTitle(),saved.getDisplayOrder(), saved.getDescription())
         );
     }
 
     public List<ChapterResponse> getChaptersByCourse(Long courseId) {
         return chapterRepository.findByCourseId(courseId)
                 .stream()
-                .map(c -> new ChapterResponse(c.getId(), c.getTitle(), c.getDisplayOrder()))
+                .map(c -> new ChapterResponse(c.getId(), c.getTitle(), c.getDisplayOrder(),c.getDescription()))
                 .collect(Collectors.toList());
     }
 
@@ -69,7 +70,7 @@ public class ChapterService {
             throw new ResourceNotFoundException("Chapter does not belong to the course");
         }
 
-        return new ChapterResponse(chapter.getId(), chapter.getTitle(), chapter.getDisplayOrder());
+        return new ChapterResponse(chapter.getId(), chapter.getTitle(), chapter.getDisplayOrder(), chapter.getDescription());
     }
 
     public ChapterActionResponse updateChapter(Long courseId, Long chapterId, ChapterRequest request) {
@@ -81,12 +82,13 @@ public class ChapterService {
         }
 
         chapter.setTitle(request.getTitle());
+        chapter.setDescription(request.getDescription());
         Chapter updated = chapterRepository.save(chapter);
 
         return new ChapterActionResponse(
                 "Chapter updated successfully",
                 courseId,
-                new ChapterResponse(updated.getId(), updated.getTitle(), updated.getDisplayOrder())
+                new ChapterResponse(updated.getId(), updated.getTitle(), updated.getDisplayOrder(),updated.getDescription())
         );
     }
 
