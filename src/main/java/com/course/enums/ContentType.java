@@ -1,18 +1,19 @@
 package com.course.enums;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+
 public enum ContentType {
     VIDEO,
-    video,
     PDF,
-    pdf,
     TEXT,
-    text,
     AUDIO,
-    audio,
     LINK,
     PPT,
     QUIZ,
-    quiz,
-    IMAGE,
-    image
+    IMAGE;
+
+    @JsonCreator
+    public static ContentType from(String value) {
+        return ContentType.valueOf(value.toUpperCase());
+    }
 }

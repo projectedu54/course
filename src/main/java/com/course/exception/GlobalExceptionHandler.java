@@ -4,6 +4,7 @@ import com.course.api.ApiResponse;
 import com.course.exception.customException.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -118,5 +119,20 @@ public class GlobalExceptionHandler {
                 .status(ex.getStatus())
                 .body(new ApiResponse<>(false, ex.getMessage(), null));
     }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidEnum(HttpMessageNotReadableException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(
+                        false,
+                        "Invalid content type. Allowed values: TEXT, PDF, PPT, QUIZ, AUDIO, LINK, IMAGE, VIDEO",
+                        null
+                ));
+
+    }
+
+
+
 
 }

@@ -52,4 +52,12 @@ public final class ContentValidationUtil {
         return BANNED_WORDS.stream()
                 .anyMatch(lower::contains);
     }
+
+    public static void validateVideoFileExtension(String url) {
+        if (!url.matches("(?i).*\\.(mp4|avi|mov|mkv|webm)$")) {
+            throw new InvalidContentException(
+                    "Only mp4, avi, mov, mkv, or webm video files are allowed"
+            );
+        }
+    }
 }

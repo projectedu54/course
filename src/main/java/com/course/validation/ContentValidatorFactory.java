@@ -20,16 +20,14 @@ public class ContentValidatorFactory {
 
             if (validator instanceof TextContentValidator) {
                 validators.put(ContentType.TEXT, validator);
-                validators.put(ContentType.text, validator);
             } else if (validator instanceof AudioContentValidator) {
                 validators.put(ContentType.AUDIO, validator);
-                validators.put(ContentType.audio, validator);
             } else if (validator instanceof ImageContentValidator) {
                 validators.put(ContentType.IMAGE, validator);
-                validators.put(ContentType.image, validator);
             } else if (validator instanceof QuizContentValidator) {
                 validators.put(ContentType.QUIZ, validator);
-                validators.put(ContentType.quiz, validator);
+            }else if (validator instanceof VideoContentValidator) {
+                validators.put(ContentType.VIDEO, validator);
             }
         }
     }
