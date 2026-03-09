@@ -35,7 +35,7 @@ public class Content {
     private String contentUrl;
 
     @Lob
-    @Column(name = "text_content")
+    @Column(name = "text_content", columnDefinition = "LONGTEXT")
     private String textContent;
 
     @Column(name = "display_order")

@@ -25,7 +25,7 @@ public class ContentService {
     private final TopicRepository topicRepository;
     private final ContentValidatorFactory validatorFactory;
     private static final int MAX_TITLE_LENGTH = 150;
-    private static final int MAX_TEXT_LENGTH = 10_000;
+    private static final int MAX_TEXT_LENGTH = 1_000_000; // 1 MB
 
     public ContentService(ContentRepository contentRepository,
                           TopicRepository topicRepository,
@@ -54,7 +54,10 @@ public class ContentService {
         content.setDescription(request.getDescription());
         content.setContentType(request.getContentType());
         content.setContentUrl(request.getContentUrl());
-        content.setTextContent(request.getTextContent());
+        //content.setTextContent(request.getTextContent());
+        if (request.getTextContent() != null) {
+            content.setTextContent(request.getTextContent());
+        }
         content.setTopic(topic);
 
         Integer maxOrder = contentRepository.findMaxDisplayOrderByTopic(topicId);
