@@ -9,7 +9,9 @@ import com.course.exception.ResourceNotFoundException;
 import com.course.exception.customException.InvalidContentException;
 import com.course.repository.ContentRepository;
 import com.course.repository.TopicRepository;
+import com.course.util.ContentValidationUtil;
 import com.course.validation.ContentValidatorFactory;
+import com.course.validation.TextContentValidator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,8 +27,6 @@ public class ContentService {
     private final TopicRepository topicRepository;
     private final ContentValidatorFactory validatorFactory;
     private static final int MAX_TITLE_LENGTH = 150;
-    private static final int MAX_TEXT_LENGTH = 1_000_000; // 1 MB
-
     public ContentService(ContentRepository contentRepository,
                           TopicRepository topicRepository,
                           ContentValidatorFactory validatorFactory) {
@@ -53,10 +53,14 @@ public class ContentService {
         content.setTitle(request.getTitle());
         content.setDescription(request.getDescription());
         content.setContentType(request.getContentType());
-        content.setContentUrl(request.getContentUrl());
-        //content.setTextContent(request.getTextContent());
-        if (request.getTextContent() != null) {
-            content.setTextContent(request.getTextContent());
+
+        if ("TEXT".equalsIgnoreCase(request.getContentType().toString())) {
+            // We sanitize the text here after validation
+            content.setTextContent(ContentValidationUtil.sanitize(request.getTextContent()));
+            content.setContentUrl(null);
+        } else {
+            content.setContentUrl(request.getContentUrl());
+            content.setTextContent(null);
         }
         content.setTopic(topic);
 
