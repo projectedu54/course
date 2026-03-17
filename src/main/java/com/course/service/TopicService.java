@@ -5,9 +5,9 @@ import com.course.dto.TopicRequest;
 import com.course.dto.TopicResponse;
 import com.course.entity.*;
 import com.course.entity.Module;
-import com.course.exception.ResourceNotFoundException;
 import com.course.exception.customException.DuplicateTopicTitleException;
 import com.course.exception.customException.InvalidTopicParentException;
+import com.course.exception.customException.ResourceNotFoundException;
 import com.course.repository.*;
 import org.springframework.stereotype.Service;
 
