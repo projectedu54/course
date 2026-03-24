@@ -5,13 +5,12 @@ import com.course.dto.ContentRequest;
 import com.course.dto.ContentResponse;
 import com.course.entity.Content;
 import com.course.entity.Topic;
-import com.course.exception.ResourceNotFoundException;
 import com.course.exception.customException.InvalidContentException;
+import com.course.exception.customException.ResourceNotFoundException;
 import com.course.repository.ContentRepository;
 import com.course.repository.TopicRepository;
 import com.course.util.ContentValidationUtil;
 import com.course.validation.ContentValidatorFactory;
-import com.course.validation.TextContentValidator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
