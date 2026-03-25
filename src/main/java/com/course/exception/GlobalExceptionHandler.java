@@ -2,6 +2,7 @@ package com.course.exception;
 
 import com.course.api.ApiResponse;
 import com.course.exception.customException.*;
+import com.course.enums.LevelType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -11,9 +12,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -60,9 +64,7 @@ public class GlobalExceptionHandler {
         String userFriendlyMessage = "Invalid request body format.";
 
         if (mostSpecificMessage.contains("com.course.enums.LevelType")) {
-            userFriendlyMessage = "Invalid levelType. Allowed values: TEXT, PDF, PPT, QUIZ, AUDIO, LINK, IMAGE, VIDEO";
-        } else if (mostSpecificMessage.contains("java.util.LinkedHashMap")) {
-            userFriendlyMessage = "Invalid metadata format. Metadata must be a JSON object, not a string.";
+            userFriendlyMessage = "Invalid levelType. Allowed values: " + getAllowedLevelTypes();
         } else {
             userFriendlyMessage = "JSON parse error: " + mostSpecificMessage;
         }
@@ -75,11 +77,28 @@ public class GlobalExceptionHandler {
     // ================= 4. URL Parameter Mismatch (Enums in @RequestParam) =================
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        String message = String.format("The parameter '%s' has an invalid value. Allowed values are: TEXT, PDF, PPT, QUIZ, AUDIO, LINK, IMAGE, VIDEO",
-                ex.getName());
+        String message;
+        if (ex.getRequiredType() == LevelType.class) {
+            message = String.format(
+                    "The parameter '%s' has an invalid value. Allowed values are: %s",
+                    ex.getName(),
+                    getAllowedLevelTypes()
+            );
+        } else {
+            message = String.format("The parameter '%s' has an invalid value.", ex.getName());
+        }
 
         logger.error("Type mismatch error: {}", ex.getMessage());
 
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, message, null));
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingRequestHeader(MissingRequestHeaderException ex) {
+        String message = String.format("Missing required header '%s'", ex.getHeaderName());
+        logger.error("Missing request header: {}", message);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(false, message, null));
@@ -110,6 +129,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(new ApiResponse<>(false, ex.getMessage(), null));
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException ex) {
+        logger.error("Forbidden: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+
     // ================= 6. Common Java Exceptions =================
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
@@ -124,5 +149,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(false, "Something went wrong. Please try again later.", null));
+    }
+
+    private String getAllowedLevelTypes() {
+        return Stream.of(LevelType.values())
+                .map(Enum::name)
+                .collect(Collectors.joining(", "));
     }
 }

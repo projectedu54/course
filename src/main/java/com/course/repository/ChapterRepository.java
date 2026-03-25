@@ -11,6 +11,8 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
 
     List<Chapter> findByCourseId(Long courseId);
 
+    List<Chapter> findByCourseIdOrderByDisplayOrderAsc(Long courseId);
+
     @Query("SELECT MAX(c.displayOrder) FROM Chapter c WHERE c.course.id = :courseId")
     Integer findMaxDisplayOrderByCourseId(@Param("courseId") Long courseId);
 

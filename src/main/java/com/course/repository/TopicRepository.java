@@ -5,15 +5,20 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface TopicRepository extends JpaRepository<Topic, Long> {
 
     // ========== FIND TOPICS BY PARENT ==========
     List<Topic> findByCourseId(Long courseId);
+    List<Topic> findByCourseIdOrderByDisplayOrderAsc(Long courseId);
     List<Topic> findByModuleId(Long moduleId);
     List<Topic> findByChapterId(Long chapterId);
     List<Topic> findBySectionId(Long sectionId);
+    List<Topic> findByModuleIdIn(Collection<Long> moduleIds);
+    List<Topic> findByChapterIdIn(Collection<Long> chapterIds);
+    List<Topic> findBySectionIdIn(Collection<Long> sectionIds);
 
     // ========== MAX DISPLAY ORDER ==========
     @Query("SELECT MAX(t.displayOrder) FROM Topic t WHERE t.course.id = :courseId")

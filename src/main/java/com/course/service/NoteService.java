@@ -3,31 +3,46 @@ package com.course.service;
 import com.course.entity.Note;
 import com.course.entity.NoteRequest;
 import com.course.enums.LevelType;
+import com.course.exception.customException.BadRequestException;
+import com.course.exception.customException.ForbiddenException;
 import com.course.exception.customException.ResourceNotFoundException;
 import com.course.repository.NoteRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class NoteService {
 
-    @Autowired
-    private NoteRepository repository;
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+
+    private final NoteRepository repository;
+    private final ObjectMapper objectMapper;
+
+    public NoteService(NoteRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
+        this.objectMapper = objectMapper;
+    }
 
     @Transactional
-    public Note create(NoteRequest request) {
+    public Note create(NoteRequest request, Long authenticatedUserId) {
+        validateUserAccess(request.getUserId(), authenticatedUserId);
+
         Note note = new Note();
-        note.setUserId(request.getUserId());
+        note.setUserId(authenticatedUserId);
         note.setLevelType(request.getLevelType());
         note.setLevelId(request.getLevelId());
-        note.setNoteText(request.getNoteText());
-        note.setMetadata(request.getMetadata());
+        note.setNoteText(request.getNoteText().trim());
+        note.setMetadata(normalizeMetadata(request.getMetadata()));
 
-        // Note: If you use @PrePersist in the Entity, you can remove these two lines:
+        // Keep timestamps explicit and deterministic even though entity hooks also exist.
         note.setCreatedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
@@ -35,36 +50,119 @@ public class NoteService {
     }
 
     @Transactional(readOnly = true)
-    public List<Note> getUserNotes(Long userId) {
-        return repository.findByUserId(userId);
+    public List<Note> getUserNotes(Long requestedUserId, Long authenticatedUserId) {
+        validateUserAccess(requestedUserId, authenticatedUserId);
+        return repository.findByUserIdOrderByUpdatedAtDescCreatedAtDesc(authenticatedUserId);
     }
 
     @Transactional(readOnly = true)
-    public List<Note> getNotesByLevel(Long userId, LevelType levelType, Long levelId) {
-        return repository.findByUserIdAndLevelTypeAndLevelId(userId, levelType, levelId);
+    public List<Note> getNotesByLevel(Long requestedUserId, LevelType levelType, Long levelId, Long authenticatedUserId) {
+        validateUserAccess(requestedUserId, authenticatedUserId);
+        return repository.findByUserIdAndLevelTypeAndLevelIdOrderByUpdatedAtDescCreatedAtDesc(
+                authenticatedUserId,
+                levelType,
+                levelId
+        );
     }
 
     @Transactional
-    public Note update(Long id, NoteRequest request) {
-        // Use a custom exception instead of a generic RuntimeException
-        Note note = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+    public Note update(Long id, NoteRequest request, Long authenticatedUserId) {
+        validateUserAccess(request.getUserId(), authenticatedUserId);
 
-        if (request.getNoteText() != null && !request.getNoteText().isBlank()) {
-            note.setNoteText(request.getNoteText());
+        Note note = findOwnedNote(id, authenticatedUserId);
+
+        if (request.getLevelType() != null && request.getLevelType() != note.getLevelType()) {
+            throw new BadRequestException("Updating note levelType is not supported", "NOTE_LEVEL_LOCKED");
         }
 
-        // We don't touch metadata here as per your requirement
+        if (request.getLevelId() != null && !request.getLevelId().equals(note.getLevelId())) {
+            throw new BadRequestException("Updating note levelId is not supported", "NOTE_LEVEL_LOCKED");
+        }
+
+        note.setNoteText(request.getNoteText().trim());
+
+        if (request.getMetadata() != null) {
+            note.setMetadata(normalizeMetadata(request.getMetadata()));
+        }
+
         note.setUpdatedAt(LocalDateTime.now());
         return repository.save(note);
     }
 
     @Transactional
-    public void delete(Long id) {
-        // Safety check: check existence before deleting to avoid EmptyResultDataAccessException
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Cannot delete. Note not found with id: " + id);
+    public void delete(Long id, Long authenticatedUserId) {
+        Note note = findOwnedNote(id, authenticatedUserId);
+        repository.delete(note);
+    }
+
+    private void validateUserAccess(Long requestedUserId, Long authenticatedUserId) {
+        if (requestedUserId == null || authenticatedUserId == null) {
+            throw new BadRequestException("userId is required", "MISSING_USER_ID");
         }
-        repository.deleteById(id);
+
+        if (!requestedUserId.equals(authenticatedUserId)) {
+            throw new ForbiddenException("Users can only access their own notes");
+        }
+    }
+
+    private Note findOwnedNote(Long noteId, Long authenticatedUserId) {
+        return repository.findByIdAndUserId(noteId, authenticatedUserId)
+                .orElseGet(() -> {
+                    Note note = repository.findById(noteId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + noteId));
+
+                    if (!note.getUserId().equals(authenticatedUserId)) {
+                        throw new ForbiddenException("Users can only access their own notes");
+                    }
+
+                    return note;
+                });
+    }
+
+    private Map<String, Object> normalizeMetadata(Object metadata) {
+        if (metadata == null) {
+            return null;
+        }
+
+        if (metadata instanceof JsonNode jsonNode) {
+            if (jsonNode.isNull()) {
+                return null;
+            }
+            if (jsonNode.isTextual()) {
+                return parseMetadataString(jsonNode.asText());
+            }
+            if (!jsonNode.isObject()) {
+                throw new BadRequestException("metadata must be a JSON object or a JSON string object", "INVALID_METADATA");
+            }
+
+            return objectMapper.convertValue(jsonNode, MAP_TYPE);
+        }
+
+        if (metadata instanceof String metadataString) {
+            return parseMetadataString(metadataString);
+        }
+
+        if (metadata instanceof Map<?, ?>) {
+            return objectMapper.convertValue(metadata, MAP_TYPE);
+        }
+
+        throw new BadRequestException("metadata must be a JSON object or a JSON string object", "INVALID_METADATA");
+    }
+
+    private Map<String, Object> parseMetadataString(String metadataString) {
+        String trimmed = metadataString == null ? "" : metadataString.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        try {
+            JsonNode parsed = objectMapper.readTree(trimmed);
+            if (!parsed.isObject()) {
+                throw new BadRequestException("metadata must be a JSON object", "INVALID_METADATA");
+            }
+            return objectMapper.convertValue(parsed, MAP_TYPE);
+        } catch (JsonProcessingException ex) {
+            throw new BadRequestException("metadata must be valid JSON", "INVALID_METADATA");
+        }
     }
 }

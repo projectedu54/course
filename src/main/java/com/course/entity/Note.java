@@ -7,7 +7,14 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Entity
-@Table(name = "notes_tbl")
+@Table(
+        name = "notes_tbl",
+        indexes = {
+                @Index(name = "idx_notes_user", columnList = "user_id"),
+                @Index(name = "idx_notes_level", columnList = "level_type, level_id"),
+                @Index(name = "idx_notes_user_level", columnList = "user_id, level_type, level_id")
+        }
+)
 public class Note {
 
     @Id
