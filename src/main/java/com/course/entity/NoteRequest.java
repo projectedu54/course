@@ -1,16 +1,27 @@
 package com.course.entity;
 
 import com.course.enums.LevelType;
-import java.util.Map;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 public class NoteRequest {
 
+    @NotNull(message = "userId is required")
+    @Positive(message = "userId must be a positive number")
     private Long userId;
+
+    @NotNull(message = "levelType is required")
     private LevelType levelType;
+
+    @NotNull(message = "levelId is required")
+    @Positive(message = "levelId must be a positive number")
     private Long levelId;
+
+    @NotBlank(message = "noteText is required")
     private String noteText;
 
-    private Map<String, Object> metadata;
+    private Object metadata;
 
     public NoteRequest() {}
 
@@ -27,6 +38,6 @@ public class NoteRequest {
     public String getNoteText() { return noteText; }
     public void setNoteText(String noteText) { this.noteText = noteText; }
 
-    public Map<String, Object> getMetadata() { return metadata; }
-    public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
+    public Object getMetadata() { return metadata; }
+    public void setMetadata(Object metadata) { this.metadata = metadata; }
 }

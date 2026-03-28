@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+logs/error.2026-03-09.log
+logs/error.2026-02-28.log
+logs/info.2026-02-28.log
+logs/info.2026-03-09.log
+logs/info.log
+logs/error.log
+logs/info.2026-03-11.log
+logs/info.2026-03-10.log
+*.log

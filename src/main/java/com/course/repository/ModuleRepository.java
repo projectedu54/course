@@ -11,6 +11,8 @@ public interface ModuleRepository extends JpaRepository<Module, Long> {
 
     List<Module> findByCourseId(Long courseId);
 
+    List<Module> findByCourseIdOrderByDisplayOrderAsc(Long courseId);
+
     @Query("SELECT MAX(m.displayOrder) FROM Module m WHERE m.course.id = :courseId")
     Integer findMaxDisplayOrderByCourseId(@Param("courseId") Long courseId);
 

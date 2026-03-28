@@ -11,6 +11,8 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
 
     List<Section> findByCourseId(Long courseId);
 
+    List<Section> findByCourseIdOrderByDisplayOrderAsc(Long courseId);
+
     @Query("SELECT MAX(s.displayOrder) FROM Section s WHERE s.course.id = :courseId")
     Integer findMaxDisplayOrderByCourseId(@Param("courseId") Long courseId);
 
