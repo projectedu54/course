@@ -99,4 +99,17 @@ public class CourseController {
                 courseService.searchPublishedCourses(keyword, tags, pageable)
         );
     }
+
+    // =============================
+    // PUBLISH COURSE
+    // =============================
+    @PatchMapping("/{id}/publish")
+    @Operation(summary = "Publish course", description = "Performs ownership, catalog, and hierarchy validation before making course live.")
+    public ResponseEntity<Course> publishCourse(
+            @PathVariable Long id,
+            @RequestHeader("X-USER-ID") Long userId) {
+
+        Course publishedCourse = courseService.publishCourse(id, userId);
+        return ResponseEntity.ok(publishedCourse);
+    }
 }

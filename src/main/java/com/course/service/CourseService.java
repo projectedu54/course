@@ -2,35 +2,52 @@ package com.course.service;
 
 import com.course.client.CatalogClient;
 import com.course.dto.CourseRequest;
-import com.course.entity.Course;
-import com.course.entity.Tag;
+import com.course.entity.*;
+import com.course.entity.Module;
 import com.course.enums.CourseStatus;
 import com.course.exception.customException.CourseServiceException;
-import com.course.repository.CourseRepository;
-import com.course.repository.TagRepository;
+import com.course.exception.customException.CourseValidationException;
+import com.course.repository.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class CourseService {
 
     private final CourseRepository courseRepository;
-    private final TagRepository tagRepository;
+    private final ModuleRepository moduleRepository;
+    private final ChapterRepository chapterRepository;
+    private final SectionRepository sectionRepository;
+    private final TopicRepository topicRepository;
+    private final ContentRepository contentRepository;
     private final CatalogClient catalogClient;
+    private final TagRepository tagRepository;
 
     public CourseService(CourseRepository courseRepository,
-                         TagRepository tagRepository,
-                         CatalogClient catalogClient) {
+                         ModuleRepository moduleRepository,
+                         ChapterRepository chapterRepository,
+                         SectionRepository sectionRepository,
+                         TopicRepository topicRepository,
+                         ContentRepository contentRepository,
+                         CatalogClient catalogClient,
+                         TagRepository tagRepository) {
         this.courseRepository = courseRepository;
-        this.tagRepository = tagRepository;
+        this.moduleRepository = moduleRepository;
+        this.chapterRepository = chapterRepository;
+        this.sectionRepository = sectionRepository;
+        this.topicRepository = topicRepository;
+        this.contentRepository = contentRepository;
         this.catalogClient = catalogClient;
+        this.tagRepository = tagRepository;
     }
 
     // =============================
@@ -206,41 +223,153 @@ public class CourseService {
         );
     }
 
-    // =============================
     // HELPER: Bulk insert tags using DB upsert
-    // =============================
     private Set<Tag> handleTagsBulk(Set<String> tagNames) {
-
         if (tagNames == null || tagNames.isEmpty()) {
             return new HashSet<>();
         }
 
-        // 1️⃣ Fetch existing tags
-        List<Tag> existingTags = tagRepository.findByNameIn(tagNames);
+        // 1. Normalize
+        Set<String> normalizedNames = tagNames.stream()
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toSet());
 
-        Set<String> existingNames = new HashSet<>();
-        for (Tag tag : existingTags) {
-            existingNames.add(tag.getName());
+        // 2. Perform Native Upsert (No exception will be thrown for duplicates)
+        for (String name : normalizedNames) {
+            tagRepository.insertIgnore(name);
         }
 
-        // 2️⃣ Prepare new tags
-        Set<Tag> newTags = new HashSet<>();
-        for (String name : tagNames) {
-            if (!existingNames.contains(name)) {
-                newTags.add(new Tag(name));
+        // 3. Safe Fetch: Now the session is clean and all tags exist
+        return new HashSet<>(tagRepository.findByNameIn(normalizedNames));
+    }
+
+    /**
+     * PUBLISH COURSE LOGIC
+     * Validates ownership, external catalog, and deep content hierarchy.
+     */
+    @Transactional
+    public Course publishCourse(Long id, Long userId) {
+        // 1. Fetch Course
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new CourseServiceException("Course not found", 404));
+
+        // 2. Ownership Validation
+        if (!course.getCreatedBy().equals(userId)) {
+            throw new CourseServiceException("You are not authorized to publish this course", 403);
+        }
+
+        // 3. Status Check
+        if (course.getStatus() == CourseStatus.PUBLISHED) {
+            throw new CourseServiceException("Course is already published", 400);
+        }
+
+        // 4. Metadata Check (As per SRS)
+        validateMetadata(course);
+
+        // 5. External Catalog Validation
+        validateCatalogPresence(course.getCatalogId());
+
+        // 6. Hybrid Hierarchy Validation (Units OR Direct Topics)
+        validateHierarchy(course);
+
+        // 7. Transition State
+        course.setStatus(CourseStatus.PUBLISHED);
+        course.onUpdate(userId);
+
+        return courseRepository.save(course);
+    }
+
+    private void validateMetadata(Course course) {
+        if (course.getDescription() == null || course.getDescription().length() < 100) {
+            throw new CourseServiceException("Description must be at least 100 characters for publishing.");
+        }
+        if (course.getTags() == null || course.getTags().isEmpty()) {
+            throw new CourseServiceException("At least one tag is required before publishing.");
+        }
+    }
+
+    private void validateCatalogPresence(Long catalogId) {
+        try {
+            Boolean exists = catalogClient.exists(String.valueOf(catalogId));
+            if (!Boolean.TRUE.equals(exists)) {
+                throw new CourseServiceException("Associated Catalog ID " + catalogId + " is invalid or inactive.");
             }
+        } catch (Exception e) {
+            throw new CourseServiceException("Catalog service is currently unavailable. Please try again later.", 503);
         }
+    }
 
-        // 3️⃣ Save new tags in batch
-        if (!newTags.isEmpty()) {
-            try {
-                tagRepository.saveAll(newTags);
-            } catch (Exception ignored) {
-                // In case of race condition, ignore and re-fetch
+    private void validateHierarchy(Course course) {
+        Long courseId = course.getId();
+        var structure = course.getCourseStructure();
+        List<String> validationErrors = new ArrayList<>();
+
+        // 1. Check for Structural Units (Modules/Chapters/Sections)
+        boolean hasUnits = switch (structure) {
+            case MODULE -> {
+                List<Module> modules = moduleRepository.findByCourseId(courseId);
+                modules.forEach(m -> validateUnit(m.getId(), m.getTitle(), "Module", validationErrors));
+                yield !modules.isEmpty();
             }
+            case CHAPTER -> {
+                List<Chapter> chapters = chapterRepository.findByCourseId(courseId);
+                chapters.forEach(ch -> validateUnit(ch.getId(), ch.getTitle(), "Chapter", validationErrors));
+                yield !chapters.isEmpty();
+            }
+            case SECTION -> {
+                List<Section> sections = sectionRepository.findByCourseId(courseId);
+                sections.forEach(s -> validateUnit(s.getId(), s.getTitle(), "Section", validationErrors));
+                yield !sections.isEmpty();
+            }
+        };
+
+        // 2. Check for Direct Topics (The scenario you mentioned)
+        // We only validate these if they exist, or if no structural units were found
+        List<String> directEmptyTopics = topicRepository.findEmptyDirectTopicTitles(courseId);
+        boolean hasDirectTopics = topicRepository.existsDirectTopicsByCourseId(courseId);
+
+        if (!directEmptyTopics.isEmpty()) {
+            validationErrors.add("The following direct topics are missing content: [" + String.join(", ", directEmptyTopics) + "]");
         }
 
-        // 4️⃣ Fetch again to ensure we have all tags
-        return new HashSet<>(tagRepository.findByNameIn(tagNames));
+        // 3. Root Level Empty Check
+        // If there are no Units AND no Direct Topics, the course is truly empty
+        if (!hasUnits && !hasDirectTopics) {
+            validationErrors.add("Course is empty. Please add " + structure.name().toLowerCase() + "s or direct topics.");
+        }
+
+        if (!validationErrors.isEmpty()) {
+            throw new CourseValidationException(validationErrors);
+        }
+    }
+
+    // Helper to keep the switch case clean
+    private void validateUnit(Long id, String title, String type, List<String> errors) {
+        // 1. Check if the Unit (Module/Chapter/Section) has any topics at all
+        boolean hasTopics = switch (type) {
+            case "Module" -> topicRepository.existsByModuleId(id);
+            case "Chapter" -> topicRepository.existsByChapterId(id);
+            case "Section" -> topicRepository.existsBySectionId(id);
+            default -> false;
+        };
+
+        if (!hasTopics) {
+            errors.add(type + " '" + title + "' is empty (no topics added).");
+            return; // Skip content check if no topics exist
+        }
+
+        // 2. Get the specific titles of topics that have 0 content
+        List<String> emptyTopicTitles = switch (type) {
+            case "Module" -> topicRepository.findEmptyTopicTitlesInModule(id);
+            case "Chapter" -> topicRepository.findEmptyTopicTitlesInChapter(id);
+            case "Section" -> topicRepository.findEmptyTopicTitlesInSection(id);
+            default -> List.of();
+        };
+
+        if (!emptyTopicTitles.isEmpty()) {
+            String names = String.join(", ", emptyTopicTitles);
+            errors.add("In " + type + " '" + title + "', these topics are missing content: [" + names + "]");
+        }
     }
 }

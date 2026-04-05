@@ -19,4 +19,10 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     boolean existsByCourseIdAndTitle(Long courseId, String title);
 
     boolean existsByCourseIdAndTitleAndIdNot(Long courseId, String title, Long id);
+
+    boolean existsByCourseId(Long courseId);
+
+    @Query("SELECT COUNT(ch) FROM Chapter ch WHERE ch.course.id = :courseId " +
+            "AND (SELECT COUNT(t) FROM Topic t WHERE t.chapter.id = ch.id) = 0")
+    long countChaptersWithoutTopics(@Param("courseId") Long courseId);
 }

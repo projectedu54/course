@@ -26,4 +26,9 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
             value = "INSERT IGNORE INTO tag_tbl(name) VALUES (:names)", nativeQuery = true
     )
     void bulkInsertIgnoreDuplicates(@Param("names") Set<String> names);
+
+    @Modifying
+    @Transactional
+    @Query(value = "INSERT IGNORE INTO tag_tbl (name) VALUES (:name)", nativeQuery = true)
+    void insertIgnore(@Param("name") String name);
 }

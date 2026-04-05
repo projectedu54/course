@@ -3,6 +3,7 @@ package com.course.repository;
 import com.course.entity.Content;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,4 +24,12 @@ public interface ContentRepository extends JpaRepository<Content, Long> {
 
     // Duplicate title check for update (exclude current content)
     boolean existsByTopicIdAndTitleAndIdNot(Long topicId, String title, Long id);
+
+    boolean existsByTopicId(Long topicId);
+    // Add to ContentRepository.java
+    @Query("SELECT COUNT(c) > 0 FROM Content c WHERE c.topic.course.id = :courseId")
+    boolean existsByCourseId(@Param("courseId") Long courseId);
+
+    @Query("SELECT COUNT(c) > 0 FROM Content c WHERE c.topic.course.id = :courseId")
+    boolean hasContent(@Param("courseId") Long courseId);
 }

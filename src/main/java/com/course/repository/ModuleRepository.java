@@ -19,4 +19,13 @@ public interface ModuleRepository extends JpaRepository<Module, Long> {
     boolean existsByCourseIdAndTitle(Long courseId, String title);
 
     boolean existsByCourseIdAndTitleAndIdNot(Long courseId, String title, Long id);
+
+    boolean existsByCourseId(Long courseId);
+
+
+    @Query("SELECT COUNT(m) FROM Module m WHERE m.course.id = :courseId " +
+            "AND (SELECT COUNT(t) FROM Topic t WHERE t.module.id = m.id) = 0")
+    long countModulesWithoutTopics(@Param("courseId") Long courseId);
+
+
 }
