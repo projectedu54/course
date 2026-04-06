@@ -11,7 +11,6 @@ public class CourseRequest {
     @NotBlank(message = "Title is mandatory")
     private String title;
 
-    @Size(max = 1000, message = "Description can be at most 1000 characters")
     private String description;
 
     @NotBlank(message = "Course type is mandatory")

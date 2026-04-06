@@ -19,4 +19,10 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
     boolean existsByCourseIdAndTitle(Long courseId, String title);
 
     boolean existsByCourseIdAndTitleAndIdNot(Long courseId, String title, Long id);
+
+    boolean existsByCourseId(Long courseId);
+
+    @Query("SELECT COUNT(s) FROM Section s WHERE s.course.id = :courseId " +
+            "AND (SELECT COUNT(t) FROM Topic t WHERE t.section.id = s.id) = 0")
+    long countSectionsWithoutTopics(@Param("courseId") Long courseId);
 }

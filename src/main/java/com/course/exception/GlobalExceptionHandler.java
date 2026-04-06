@@ -156,4 +156,13 @@ public class GlobalExceptionHandler {
                 .map(Enum::name)
                 .collect(Collectors.joining(", "));
     }
+
+    @ExceptionHandler(CourseValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationException(CourseValidationException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "error");
+        body.put("message", "Please complete the following items before publishing:");
+        body.put("errors", ex.getErrors());
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
 }
