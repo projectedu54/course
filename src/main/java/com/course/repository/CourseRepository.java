@@ -13,7 +13,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     @Query("""
         SELECT c, p FROM Course c
-        LEFT JOIN PriceCatalog p ON c.id = p.entityId AND p.entityType = 'COURSE'
+        LEFT JOIN PriceCatalog p ON c.id = p.entityId AND p.entityType = 'COURSE' and p.isActive=true 
         WHERE c.status = 'PUBLISHED'
         AND (
             LOWER(c.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
