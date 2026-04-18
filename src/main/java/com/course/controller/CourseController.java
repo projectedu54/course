@@ -86,21 +86,6 @@ public class CourseController {
     }
 
     // =============================
-    // SEARCH PUBLISHED COURSES
-    // =============================
-    @GetMapping("/search")
-    @Operation(summary = "Search published course")
-    public ResponseEntity<Page<Course>> searchCourses(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Set<String> tags,
-            Pageable pageable) {
-
-        return ResponseEntity.ok(
-                courseService.searchPublishedCourses(keyword, tags, pageable)
-        );
-    }
-
-    // =============================
     // PUBLISH COURSE
     // =============================
     @PatchMapping("/{id}/publish")

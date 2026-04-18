@@ -2,11 +2,13 @@ package com.course.service;
 
 import com.course.client.CatalogClient;
 import com.course.dto.CourseRequest;
+import com.course.dto.CourseResponse;
 import com.course.entity.*;
 import com.course.entity.Module;
 import com.course.enums.CourseStatus;
 import com.course.exception.customException.CourseServiceException;
 import com.course.exception.customException.CourseValidationException;
+import com.course.mapper.CourseMapper;
 import com.course.repository.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -207,22 +209,6 @@ public class CourseService {
         courseRepository.delete(course);
     }
 
-    // =============================
-    // SEARCH PUBLISHED
-    // =============================
-    public Page<Course> searchPublishedCourses(String keyword,
-                                               Set<String> tags,
-                                               Pageable pageable) {
-
-        if (keyword == null) keyword = "";
-
-        return courseRepository.searchPublishedCourses(
-                keyword,
-                tags == null || tags.isEmpty() ? null : tags,
-                pageable
-        );
-    }
-
     // HELPER: Bulk insert tags using DB upsert
     private Set<Tag> handleTagsBulk(Set<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) {
@@ -371,5 +357,18 @@ public class CourseService {
             String names = String.join(", ", emptyTopicTitles);
             errors.add("In " + type + " '" + title + "', these topics are missing content: [" + names + "]");
         }
+    }
+
+    public Page<CourseResponse> searchPublishedCourses(String keyword, Set<String> tags, Pageable pageable) {
+        Page<Object[]> results = courseRepository.searchPublishedCoursesWithPricing(keyword, tags, pageable);
+
+        return results.map(row -> {
+            Course course = (Course) row[0];
+            PriceCatalog price = (PriceCatalog) row[1]; // Might be null
+
+            CourseResponse response = CourseMapper.toResponse(course);
+            response.setPrice(price);
+            return response;
+        });
     }
 }
