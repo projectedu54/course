@@ -1,5 +1,7 @@
 package com.course.dto;
 
+import com.course.entity.PriceCatalog;
+
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -13,6 +15,7 @@ public class CourseResponse {
     private Long catalogId;
     private Set<String> tags;
     private LocalDateTime createdAt;
+    private PriceCatalog price;
 
     public CourseResponse() {}
 
@@ -78,5 +81,13 @@ public class CourseResponse {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public PriceCatalog getPrice() {
+        return price;
+    }
+
+    public void setPrice(PriceCatalog price) {
+        this.price = price;
     }
 }

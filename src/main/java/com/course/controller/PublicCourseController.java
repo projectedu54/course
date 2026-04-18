@@ -38,8 +38,7 @@ public class PublicCourseController {
             Pageable pageable
     ) {
         Page<CourseResponse> result =
-                courseService.searchPublishedCourses(keyword, tags, pageable)
-                        .map(CourseMapper::toResponse);
+                courseService.searchPublishedCourses(keyword, tags, pageable);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Courses fetched successfully", result)
