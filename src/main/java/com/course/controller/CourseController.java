@@ -1,6 +1,8 @@
 package com.course.controller;
 
+import com.course.dto.CourseMetadataDTO;
 import com.course.dto.CourseRequest;
+import com.course.dto.SyllabusDTO;
 import com.course.entity.Course;
 import com.course.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -96,5 +98,20 @@ public class CourseController {
 
         Course publishedCourse = courseService.publishCourse(id, userId);
         return ResponseEntity.ok(publishedCourse);
+    }
+
+
+// BATCH METADATA
+    @PostMapping("/bulk-metadata")
+    @Operation(summary = "Get metadata for multiple courses", description = "Optimized for Enrollment dashboard")
+    public ResponseEntity<List<CourseMetadataDTO>> getBulkMetadata(@RequestBody Set<Long> ids) {
+        List<CourseMetadataDTO> metadata = courseService.getMetadataByIds(ids);
+        return ResponseEntity.ok(metadata);
+    }
+
+    @GetMapping("/{id}/syllabus")
+    @Operation(summary = "Get full course hierarchy")
+    public ResponseEntity<SyllabusDTO> getSyllabus(@PathVariable Long id) {
+        return ResponseEntity.ok(courseService.getSyllabus(id));
     }
 }

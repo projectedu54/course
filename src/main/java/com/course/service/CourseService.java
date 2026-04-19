@@ -1,8 +1,7 @@
 package com.course.service;
 
 import com.course.client.CatalogClient;
-import com.course.dto.CourseRequest;
-import com.course.dto.CourseResponse;
+import com.course.dto.*;
 import com.course.entity.*;
 import com.course.entity.Module;
 import com.course.enums.CourseStatus;
@@ -370,5 +369,80 @@ public class CourseService {
             response.setPrice(price);
             return response;
         });
+    }
+
+    public List<CourseMetadataDTO> getMetadataByIds(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        // Using your existing repository to fetch the entities
+        List<Course> courses = courseRepository.findAllById(ids);
+
+        return courses.stream()
+                .map(c -> new CourseMetadataDTO(
+                        c.getId(),
+                        c.getTitle(),
+                        "thumbnail_placeholder.jpg" // Add real logic/field here later
+                ))
+                .collect(Collectors.toList());
+    }
+
+    public SyllabusDTO getSyllabus(Long courseId) {
+        Course course = getCourseById(courseId);
+        var structure = course.getCourseStructure();
+
+        List<UnitDTO> units = new ArrayList<>();
+
+        // 1. Fetch Units based on structure type
+        if (structure != null) {
+            switch (structure) {
+                case MODULE -> {
+                    moduleRepository.findByCourseIdOrderByDisplayOrderAsc(courseId)
+                            .forEach(m -> units.add(new UnitDTO(m.getId(), m.getTitle(), getTopicsForUnit(m.getId(), "MODULE"))));
+                }
+                case CHAPTER -> {
+                    chapterRepository.findByCourseIdOrderByDisplayOrderAsc(courseId)
+                            .forEach(ch -> units.add(new UnitDTO(ch.getId(), ch.getTitle(), getTopicsForUnit(ch.getId(), "CHAPTER"))));
+                }
+                case SECTION -> {
+                    sectionRepository.findByCourseIdOrderByDisplayOrderAsc(courseId)
+                            .forEach(s -> units.add(new UnitDTO(s.getId(), s.getTitle(), getTopicsForUnit(s.getId(), "SECTION"))));
+                }
+            }
+        }
+
+        // 2. Fetch Direct Topics
+        List<TopicDTO> rootTopics = topicRepository.findByCourseId(courseId).stream()
+                .filter(t -> t.getModule() == null && t.getChapter() == null && t.getSection() == null)
+                .sorted((a, b) -> a.getDisplayOrder().compareTo(b.getDisplayOrder()))
+                .map(this::mapToTopicDTO)
+                .toList();
+
+        // 3. Return with structure name
+        return new SyllabusDTO(
+                courseId,
+                course.getTitle(),
+                structure != null ? structure.name() : "NONE",
+                units,
+                rootTopics
+        );
+    }
+
+    private List<TopicDTO> getTopicsForUnit(Long unitId, String type) {
+        List<Topic> topics = switch (type) {
+            case "MODULE" -> topicRepository.findByModuleId(unitId);
+            case "CHAPTER" -> topicRepository.findByChapterId(unitId);
+            case "SECTION" -> topicRepository.findBySectionId(unitId);
+            default -> List.of();
+        };
+        return topics.stream().map(this::mapToTopicDTO).toList();
+    }
+
+    private TopicDTO mapToTopicDTO(Topic t) {
+        List<ContentDTO> contents = contentRepository.findByTopicIdOrderByDisplayOrderAsc(t.getId())
+                .stream().map(c -> new ContentDTO(c.getId(), c.getTitle(), c.getContentType().name()))
+                .toList();
+        return new TopicDTO(t.getId(), t.getTitle(), contents);
     }
 }
