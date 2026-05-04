@@ -1,13 +1,13 @@
 package com.course.service;
 
-import com.course.dto.ContentReorderRequest;
-import com.course.dto.ContentRequest;
-import com.course.dto.ContentResponse;
+import com.course.dto.*;
 import com.course.entity.Content;
 import com.course.entity.Topic;
+import com.course.entity.UserHighlight;
 import com.course.exception.customException.InvalidContentException;
 import com.course.exception.customException.ResourceNotFoundException;
 import com.course.repository.ContentRepository;
+import com.course.repository.HighlightRepository;
 import com.course.repository.TopicRepository;
 import com.course.util.ContentValidationUtil;
 import com.course.validation.ContentValidatorFactory;
@@ -26,12 +26,17 @@ public class ContentService {
     private final TopicRepository topicRepository;
     private final ContentValidatorFactory validatorFactory;
     private static final int MAX_TITLE_LENGTH = 150;
+    private final HighlightRepository highlightRepository;
+
     public ContentService(ContentRepository contentRepository,
                           TopicRepository topicRepository,
-                          ContentValidatorFactory validatorFactory) {
+                          ContentValidatorFactory validatorFactory,
+                          HighlightRepository highlightRepository) {
         this.contentRepository = contentRepository;
         this.topicRepository = topicRepository;
         this.validatorFactory = validatorFactory;
+        this.highlightRepository = highlightRepository;
+
     }
 
     // ================= CREATE =================
@@ -207,6 +212,73 @@ public class ContentService {
 
         // Type-specific validations (TEXT, AUDIO, IMAGE, etc.)
         validatorFactory.getValidator(request.getContentType()).validate(request);
+    }
+
+    @Transactional
+    public HighlightResponse saveHighlight(Long userId, Long contentId, HighlightRequest request) {
+        // 1. Verify content exists
+        if (!contentRepository.existsById(contentId)) {
+            throw new ResourceNotFoundException("Content not found");
+        }
+
+        // 2. Check if this exact text is already highlighted by this user
+        List<UserHighlight> existing = highlightRepository.findByUserIdAndContentId(userId, contentId);
+
+        UserHighlight highlightToSave = null;
+
+        for (UserHighlight h : existing) {
+            if (h.getSelectionCoords().equals(request.getSelectionData())) {
+                highlightToSave = h; // Found a duplicate
+                break;
+            }
+        }
+
+        if (highlightToSave == null) {
+            // Create new
+            highlightToSave = new UserHighlight();
+            highlightToSave.setUserId(userId);
+            highlightToSave.setContentId(contentId);
+            highlightToSave.setCreatedAt(LocalDateTime.now());
+        }
+
+        // 3. Update the fields (in case they changed the color)
+        highlightToSave.setSelectionCoords(request.getSelectionData());
+        highlightToSave.setHighlightedText(request.getHighlightedText());
+        highlightToSave.setColor(request.getColor());
+
+        UserHighlight saved = highlightRepository.save(highlightToSave);
+
+        return new HighlightResponse(
+                saved.getId(),
+                saved.getSelectionCoords(),
+                saved.getHighlightedText(),
+                saved.getColor()
+        );
+    }
+
+    public List<HighlightResponse> getHighlights(Long userId, Long contentId) {
+        return highlightRepository.findByUserIdAndContentId(userId, contentId)
+                .stream()
+                .map(h -> new HighlightResponse(h.getId(), h.getSelectionCoords(), h.getHighlightedText(), h.getColor()))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteHighlight(Long userId, Long highlightId) {
+        // 1. Fetch the highlight
+        UserHighlight highlight = highlightRepository.findById(highlightId)
+                .orElseThrow(() -> new ResourceNotFoundException("Highlight not found"));
+
+        // 2. Security Check: Ensure the user trying to delete it is the owner
+        // This prevents User A from deleting User B's highlights via API manipulation
+        if (!highlight.getUserId().equals(userId)) {
+            throw new InvalidContentException("You do not have permission to delete this highlight");
+        }
+
+        // 3. Delete from database
+        highlightRepository.delete(highlight);
+
+        System.out.println("Highlight id="+highlightId +" deleted by userId="+userId);
     }
 
 }

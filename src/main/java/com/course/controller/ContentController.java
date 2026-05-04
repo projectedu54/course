@@ -1,8 +1,6 @@
 package com.course.controller;
 
-import com.course.dto.ContentReorderRequest;
-import com.course.dto.ContentRequest;
-import com.course.dto.ContentResponse;
+import com.course.dto.*;
 import com.course.service.ContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -128,5 +126,35 @@ public class ContentController {
         logger.info("Contents reordered successfully for topicId={}", topicId);
 
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{contentId}/highlights")
+    @Operation(summary = "Save user highlight", description = "Uses X-User-Id from Gateway")
+    public ResponseEntity<HighlightResponse> saveHighlight(
+            @PathVariable Long contentId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestBody HighlightRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(contentService.saveHighlight(userId, contentId, request));
+    }
+
+    @GetMapping("/{contentId}/highlights")
+    @Operation(summary = "Get user highlights", description = "Fetch all highlights for current user")
+    public ResponseEntity<List<HighlightResponse>> getHighlights(
+            @PathVariable Long contentId,
+            @RequestHeader("X-User-Id") Long userId) {
+
+        return ResponseEntity.ok(contentService.getHighlights(userId, contentId));
+    }
+
+    @DeleteMapping("/{contentId}/highlights/{highlightId}")
+    public ResponseEntity<Void> removeHighlight(
+            @PathVariable Long contentId,
+            @PathVariable Long highlightId,
+            @RequestHeader("X-User-Id") Long userId) {
+
+        contentService.deleteHighlight(userId, highlightId);
+        return ResponseEntity.noContent().build();
     }
 }
