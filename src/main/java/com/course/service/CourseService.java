@@ -441,7 +441,7 @@ public class CourseService {
 
     private TopicDTO mapToTopicDTO(Topic t) {
         List<ContentDTO> contents = contentRepository.findByTopicIdOrderByDisplayOrderAsc(t.getId())
-                .stream().map(c -> new ContentDTO(c.getId(), c.getTitle(), c.getContentType().name()))
+                .stream().map(c -> new ContentDTO(c.getId(), c.getTitle(), c.getTextContent(),c.getContentType().name(), c.getContentUrl()))
                 .toList();
         return new TopicDTO(t.getId(), t.getTitle(), contents);
     }
