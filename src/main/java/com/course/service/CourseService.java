@@ -5,13 +5,16 @@ import com.course.dto.*;
 import com.course.entity.*;
 import com.course.entity.Module;
 import com.course.enums.CourseStatus;
+import com.course.event.CoursePublishedEvent;
 import com.course.exception.customException.CourseServiceException;
 import com.course.exception.customException.CourseValidationException;
 import com.course.mapper.CourseMapper;
 import com.course.repository.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +35,11 @@ public class CourseService {
     private final ContentRepository contentRepository;
     private final CatalogClient catalogClient;
     private final TagRepository tagRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    // Inject the topic name dynamically from application.properties
+    @Value("${kafka.topic.course-published}")
+    private String coursePublishedTopic;
 
     public CourseService(CourseRepository courseRepository,
                          ModuleRepository moduleRepository,
@@ -40,7 +48,8 @@ public class CourseService {
                          TopicRepository topicRepository,
                          ContentRepository contentRepository,
                          CatalogClient catalogClient,
-                         TagRepository tagRepository) {
+                         TagRepository tagRepository,
+                         KafkaTemplate<String, Object> kafkaTemplate) {
         this.courseRepository = courseRepository;
         this.moduleRepository = moduleRepository;
         this.chapterRepository = chapterRepository;
@@ -49,6 +58,7 @@ public class CourseService {
         this.contentRepository = contentRepository;
         this.catalogClient = catalogClient;
         this.tagRepository = tagRepository;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     // =============================
@@ -56,8 +66,6 @@ public class CourseService {
     // =============================
     @Transactional
     public Course createCourse(CourseRequest request, Long userId) {
-
-        // Validate catalog
         Boolean exists;
         try {
             exists = catalogClient.exists(String.valueOf(request.getCatalogId()));
@@ -74,7 +82,6 @@ public class CourseService {
             );
         }
 
-        // Duplicate check per user
         boolean duplicate = courseRepository
                 .existsByTitleIgnoreCaseAndCreatedBy(request.getTitle(), userId);
 
@@ -84,10 +91,8 @@ public class CourseService {
             );
         }
 
-        // Handle tags efficiently
         Set<Tag> tags = handleTagsBulk(request.getTags());
 
-        // Create course
         Course course = new Course();
         course.setTitle(request.getTitle());
         course.setDescription(request.getDescription());
@@ -127,15 +132,12 @@ public class CourseService {
     // =============================
     @Transactional
     public Course updateCourse(Long id, CourseRequest request, Long userId) {
-
         Course course = getCourseById(id);
 
-        // Ownership validation
         if (!course.getCreatedBy().equals(userId)) {
             throw new CourseServiceException("You are not allowed to update this course");
         }
 
-        // Validate catalog if changed
         if (request.getCatalogId() != null) {
             Boolean exists;
             try {
@@ -154,13 +156,11 @@ public class CourseService {
             course.setCatalogId(Long.valueOf(request.getCatalogId()));
         }
 
-        // Prevent structure change
         if (request.getCourseStructure() != null &&
                 request.getCourseStructure() != course.getCourseStructure()) {
             throw new CourseServiceException("Course structure cannot be changed once created");
         }
 
-        // Prevent duplicate title for the same user
         if (request.getTitle() != null && !request.getTitle().equalsIgnoreCase(course.getTitle())) {
             boolean duplicate = courseRepository
                     .existsByTitleIgnoreCaseAndCreatedBy(request.getTitle(), userId);
@@ -182,7 +182,6 @@ public class CourseService {
         if (request.getStatus() != null)
             course.setStatus(CourseStatus.valueOf(request.getStatus()));
 
-        // Update tags efficiently
         if (request.getTags() != null) {
             Set<Tag> tags = handleTagsBulk(request.getTags());
             course.setTags(tags);
@@ -198,7 +197,6 @@ public class CourseService {
     // =============================
     @Transactional
     public void deleteCourse(Long id, Long userId) {
-
         Course course = getCourseById(id);
 
         if (!course.getCreatedBy().equals(userId)) {
@@ -208,30 +206,27 @@ public class CourseService {
         courseRepository.delete(course);
     }
 
-    // HELPER: Bulk insert tags using DB upsert
     private Set<Tag> handleTagsBulk(Set<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) {
             return new HashSet<>();
         }
 
-        // 1. Normalize
         Set<String> normalizedNames = tagNames.stream()
                 .map(String::trim)
                 .filter(name -> !name.isEmpty())
                 .collect(Collectors.toSet());
 
-        // 2. Perform Native Upsert (No exception will be thrown for duplicates)
         for (String name : normalizedNames) {
             tagRepository.insertIgnore(name);
         }
 
-        // 3. Safe Fetch: Now the session is clean and all tags exist
         return new HashSet<>(tagRepository.findByNameIn(normalizedNames));
     }
 
     /**
      * PUBLISH COURSE LOGIC
      * Validates ownership, external catalog, and deep content hierarchy.
+     * Triggers a Kafka event upon successful status change using the configurable topic name.
      */
     @Transactional
     public Course publishCourse(Long id, Long userId) {
@@ -249,20 +244,36 @@ public class CourseService {
             throw new CourseServiceException("Course is already published", 400);
         }
 
-        // 4. Metadata Check (As per SRS)
+        // 4. Metadata Check
         validateMetadata(course);
 
         // 5. External Catalog Validation
         validateCatalogPresence(course.getCatalogId());
 
-        // 6. Hybrid Hierarchy Validation (Units OR Direct Topics)
+        // 6. Hybrid Hierarchy Validation
         validateHierarchy(course);
 
         // 7. Transition State
         course.setStatus(CourseStatus.PUBLISHED);
         course.onUpdate(userId);
+        Course savedCourse = courseRepository.save(course);
 
-        return courseRepository.save(course);
+        // 8. PUBLISH KAFKA EVENT
+        try {
+            CoursePublishedEvent event = new CoursePublishedEvent(
+                    savedCourse.getId(),
+                    userId,
+                    savedCourse.getTitle(),
+                    String.valueOf(savedCourse.getCatalogId())
+            );
+
+            // Send message using the topic loaded from application.properties
+            kafkaTemplate.send(coursePublishedTopic, String.valueOf(savedCourse.getId()), event);
+        } catch (Exception e) {
+            throw new CourseServiceException("Course published successfully, but failed to queue publication event: " + e.getMessage(), 500);
+        }
+
+        return savedCourse;
     }
 
     private void validateMetadata(Course course) {
@@ -290,7 +301,6 @@ public class CourseService {
         var structure = course.getCourseStructure();
         List<String> validationErrors = new ArrayList<>();
 
-        // 1. Check for Structural Units (Modules/Chapters/Sections)
         boolean hasUnits = switch (structure) {
             case MODULE -> {
                 List<Module> modules = moduleRepository.findByCourseId(courseId);
@@ -309,8 +319,6 @@ public class CourseService {
             }
         };
 
-        // 2. Check for Direct Topics (The scenario you mentioned)
-        // We only validate these if they exist, or if no structural units were found
         List<String> directEmptyTopics = topicRepository.findEmptyDirectTopicTitles(courseId);
         boolean hasDirectTopics = topicRepository.existsDirectTopicsByCourseId(courseId);
 
@@ -318,8 +326,6 @@ public class CourseService {
             validationErrors.add("The following direct topics are missing content: [" + String.join(", ", directEmptyTopics) + "]");
         }
 
-        // 3. Root Level Empty Check
-        // If there are no Units AND no Direct Topics, the course is truly empty
         if (!hasUnits && !hasDirectTopics) {
             validationErrors.add("Course is empty. Please add " + structure.name().toLowerCase() + "s or direct topics.");
         }
@@ -329,9 +335,7 @@ public class CourseService {
         }
     }
 
-    // Helper to keep the switch case clean
     private void validateUnit(Long id, String title, String type, List<String> errors) {
-        // 1. Check if the Unit (Module/Chapter/Section) has any topics at all
         boolean hasTopics = switch (type) {
             case "Module" -> topicRepository.existsByModuleId(id);
             case "Chapter" -> topicRepository.existsByChapterId(id);
@@ -341,10 +345,9 @@ public class CourseService {
 
         if (!hasTopics) {
             errors.add(type + " '" + title + "' is empty (no topics added).");
-            return; // Skip content check if no topics exist
+            return;
         }
 
-        // 2. Get the specific titles of topics that have 0 content
         List<String> emptyTopicTitles = switch (type) {
             case "Module" -> topicRepository.findEmptyTopicTitlesInModule(id);
             case "Chapter" -> topicRepository.findEmptyTopicTitlesInChapter(id);
@@ -363,7 +366,7 @@ public class CourseService {
 
         return results.map(row -> {
             Course course = (Course) row[0];
-            PriceCatalog price = (PriceCatalog) row[1]; // Might be null
+            PriceCatalog price = (PriceCatalog) row[1];
 
             CourseResponse response = CourseMapper.toResponse(course);
             response.setPrice(price);
@@ -376,14 +379,13 @@ public class CourseService {
             return List.of();
         }
 
-        // Using your existing repository to fetch the entities
         List<Course> courses = courseRepository.findAllById(ids);
 
         return courses.stream()
                 .map(c -> new CourseMetadataDTO(
                         c.getId(),
                         c.getTitle(),
-                        "thumbnail_placeholder.jpg" // Add real logic/field here later
+                        "thumbnail_placeholder.jpg"
                 ))
                 .collect(Collectors.toList());
     }
@@ -394,7 +396,6 @@ public class CourseService {
 
         List<UnitDTO> units = new ArrayList<>();
 
-        // 1. Fetch Units based on structure type
         if (structure != null) {
             switch (structure) {
                 case MODULE -> {
@@ -412,14 +413,12 @@ public class CourseService {
             }
         }
 
-        // 2. Fetch Direct Topics
         List<TopicDTO> rootTopics = topicRepository.findByCourseId(courseId).stream()
                 .filter(t -> t.getModule() == null && t.getChapter() == null && t.getSection() == null)
                 .sorted((a, b) -> a.getDisplayOrder().compareTo(b.getDisplayOrder()))
                 .map(this::mapToTopicDTO)
                 .toList();
 
-        // 3. Return with structure name
         return new SyllabusDTO(
                 courseId,
                 course.getTitle(),
@@ -441,7 +440,7 @@ public class CourseService {
 
     private TopicDTO mapToTopicDTO(Topic t) {
         List<ContentDTO> contents = contentRepository.findByTopicIdOrderByDisplayOrderAsc(t.getId())
-                .stream().map(c -> new ContentDTO(c.getId(), c.getTitle(), c.getTextContent(),c.getContentType().name(), c.getContentUrl()))
+                .stream().map(c -> new ContentDTO(c.getId(), c.getTitle(), c.getTextContent(), c.getContentType().name(), c.getContentUrl()))
                 .toList();
         return new TopicDTO(t.getId(), t.getTitle(), contents);
     }
