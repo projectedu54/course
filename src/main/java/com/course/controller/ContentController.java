@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -27,20 +28,22 @@ public class ContentController {
     }
 
     // ================= CREATE =================
-    @PostMapping
-    @Operation(summary = "Add new content to a topic",
-            description = "Creates content under a topic. Display order is auto-incremented.")
+    @PostMapping(consumes = {"multipart/form-data"})
+    @Operation(summary = "Add new content with file upload",
+            description = "Creates content and uploads file (PDF, video, audio, etc.) to S3.")
     public ResponseEntity<ContentResponse> createContent(
             @PathVariable Long topicId,
-            @Valid @RequestBody ContentRequest request) {
+            @RequestParam("title") String title,
+            @RequestParam("description") String description,
+            @RequestParam("contentType") String contentType,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "textContent", required = false) String textContent) {
 
-        logger.info("Creating content for topicId={}", topicId);
-        logger.debug("Create request payload: {}", request);
+        logger.info("Creating content with file upload for topicId={}", topicId);
 
-        ContentResponse response = contentService.createContent(topicId, request);
-
-        logger.info("Content created successfully with id={} for topicId={}",
-                response.getId(), topicId);
+        ContentResponse response = contentService.createContentWithFile(
+                topicId, title, description, contentType, file, textContent
+        );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

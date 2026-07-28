@@ -10,10 +10,15 @@ public enum ContentType {
     LINK,
     PPT,
     QUIZ,
-    IMAGE;
+    IMAGE,
+    DOC,
+    DOCX;
 
     @JsonCreator
     public static ContentType from(String value) {
-        return ContentType.valueOf(value.toUpperCase());
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return ContentType.valueOf(value.trim().toUpperCase());
     }
 }

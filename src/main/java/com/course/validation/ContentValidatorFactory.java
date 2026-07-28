@@ -26,18 +26,25 @@ public class ContentValidatorFactory {
                 validators.put(ContentType.IMAGE, validator);
             } else if (validator instanceof QuizContentValidator) {
                 validators.put(ContentType.QUIZ, validator);
-            }else if (validator instanceof VideoContentValidator) {
+            } else if (validator instanceof VideoContentValidator) {
                 validators.put(ContentType.VIDEO, validator);
+            } else if (validator instanceof DocumentContentValidator) {
+                // Handles PDF, PPT, DOC, DOCX
+                validators.put(ContentType.PDF, validator);
+                validators.put(ContentType.PPT, validator);
+                validators.put(ContentType.DOC, validator);
+                validators.put(ContentType.DOCX, validator);
+            } else if (validator instanceof LinkContentValidator) {
+                validators.put(ContentType.LINK, validator);
             }
         }
     }
 
     public ContentValidator getValidator(ContentType type) {
-
         ContentValidator validator = validators.get(type);
 
         if (validator == null) {
-            throw new InvalidContentException("Unsupported content type");
+            throw new InvalidContentException("Unsupported content type: " + type);
         }
 
         return validator;

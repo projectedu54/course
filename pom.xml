@@ -17,6 +17,7 @@
 		<java.version>17</java.version>
 		<jjwt.version>0.11.5</jjwt.version>
 		<spring-cloud.version>2024.0.0</spring-cloud.version>
+		<aws-sdk.version>2.25.50</aws-sdk.version>
 	</properties>
 
 	<dependencyManagement>
@@ -25,6 +26,14 @@
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
 				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<!-- Added AWS SDK v2 BOM to manage S3 and other AWS dependencies -->
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws-sdk.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -115,6 +124,12 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
+		<!-- AWS S3 Client Dependency (Now managed via BOM above) -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -123,15 +138,15 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>21</source>
-                    <target>21</target>
-                    <compilerArgs>--enable-preview</compilerArgs>
-                </configuration>
-            </plugin>
-        </plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>21</source>
+					<target>21</target>
+					<compilerArgs>--enable-preview</compilerArgs>
+				</configuration>
+			</plugin>
+		</plugins>
 	</build>
 </project>

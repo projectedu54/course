@@ -4,6 +4,7 @@ import com.course.dto.*;
 import com.course.entity.Content;
 import com.course.entity.Topic;
 import com.course.entity.UserHighlight;
+import com.course.enums.ContentType;
 import com.course.exception.customException.InvalidContentException;
 import com.course.exception.customException.ResourceNotFoundException;
 import com.course.repository.ContentRepository;
@@ -13,6 +14,7 @@ import com.course.util.ContentValidationUtil;
 import com.course.validation.ContentValidatorFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,26 +29,27 @@ public class ContentService {
     private final ContentValidatorFactory validatorFactory;
     private static final int MAX_TITLE_LENGTH = 150;
     private final HighlightRepository highlightRepository;
+    private final S3StorageService s3StorageService;
 
     public ContentService(ContentRepository contentRepository,
                           TopicRepository topicRepository,
                           ContentValidatorFactory validatorFactory,
-                          HighlightRepository highlightRepository) {
+                          HighlightRepository highlightRepository,
+                          S3StorageService s3StorageService) {
         this.contentRepository = contentRepository;
         this.topicRepository = topicRepository;
         this.validatorFactory = validatorFactory;
         this.highlightRepository = highlightRepository;
-
+        this.s3StorageService = s3StorageService;
     }
 
-    // ================= CREATE =================
+    // ================= CREATE (JSON / URL-based) =================
     public ContentResponse createContent(Long topicId, ContentRequest request) {
         validateContentByType(request);
 
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
 
-        // 🔹 Duplicate title check
         if (contentRepository.existsByTopicIdAndTitle(topicId, request.getTitle())) {
             throw new InvalidContentException(
                     "Content with title '" + request.getTitle() + "' already exists in this topic"
@@ -59,7 +62,6 @@ public class ContentService {
         content.setContentType(request.getContentType());
 
         if ("TEXT".equalsIgnoreCase(request.getContentType().toString())) {
-            // We sanitize the text here after validation
             content.setTextContent(ContentValidationUtil.sanitize(request.getTextContent()));
             content.setContentUrl(null);
         } else {
@@ -70,9 +72,50 @@ public class ContentService {
 
         Integer maxOrder = contentRepository.findMaxDisplayOrderByTopic(topicId);
         content.setDisplayOrder((maxOrder == null ? 0 : maxOrder) + 1);
-
         content.setCreatedAt(LocalDateTime.now());
-        content.setUpdatedAt(null); // no updatedAt at creation
+        content.setUpdatedAt(null);
+
+        Content saved = contentRepository.save(content);
+        return mapToResponse(saved);
+    }
+
+    // ================= CREATE WITH FILE UPLOAD (Multipart) =================
+    @Transactional
+    public ContentResponse createContentWithFile(Long topicId, String title, String description,
+                                                 String contentTypeStr, MultipartFile file, String textContent) {
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Topic not found"));
+
+        if (contentRepository.existsByTopicIdAndTitle(topicId, title)) {
+            throw new InvalidContentException("Content with title '" + title + "' already exists in this topic");
+        }
+
+        Content content = new Content();
+        content.setTitle(title);
+        content.setDescription(description);
+
+        // Parse explicitly using the fully qualified or correctly imported Enum package
+        ContentType contentType = ContentType.valueOf(contentTypeStr.toUpperCase());
+        content.setContentType(contentType);
+
+        if ("TEXT".equalsIgnoreCase(contentTypeStr)) {
+            content.setTextContent(ContentValidationUtil.sanitize(textContent));
+            content.setContentUrl(null);
+        } else {
+            if (file == null || file.isEmpty()) {
+                throw new InvalidContentException("File is required for content type: " + contentTypeStr);
+            }
+            // Upload file to local MinIO/S3 bucket and save reference key
+            String s3FileKey = s3StorageService.uploadFile(file);
+            content.setContentUrl(s3FileKey);
+            content.setTextContent(null);
+        }
+
+        content.setTopic(topic);
+
+        Integer maxOrder = contentRepository.findMaxDisplayOrderByTopic(topicId);
+        content.setDisplayOrder((maxOrder == null ? 0 : maxOrder) + 1);
+        content.setCreatedAt(LocalDateTime.now());
 
         Content saved = contentRepository.save(content);
         return mapToResponse(saved);
@@ -110,7 +153,6 @@ public class ContentService {
             throw new ResourceNotFoundException("Content does not belong to the topic");
         }
 
-        // 🔹 Duplicate title check excluding current content
         if (contentRepository.existsByTopicIdAndTitleAndIdNot(topicId, request.getTitle(), contentId)) {
             throw new InvalidContentException(
                     "Another content with title '" + request.getTitle() + "' already exists in this topic"
@@ -210,38 +252,32 @@ public class ContentService {
             throw new InvalidContentException("Content type is required");
         }
 
-        // Type-specific validations (TEXT, AUDIO, IMAGE, etc.)
         validatorFactory.getValidator(request.getContentType()).validate(request);
     }
 
     @Transactional
     public HighlightResponse saveHighlight(Long userId, Long contentId, HighlightRequest request) {
-        // 1. Verify content exists
         if (!contentRepository.existsById(contentId)) {
             throw new ResourceNotFoundException("Content not found");
         }
 
-        // 2. Check if this exact text is already highlighted by this user
         List<UserHighlight> existing = highlightRepository.findByUserIdAndContentId(userId, contentId);
-
         UserHighlight highlightToSave = null;
 
         for (UserHighlight h : existing) {
             if (h.getSelectionCoords().equals(request.getSelectionData())) {
-                highlightToSave = h; // Found a duplicate
+                highlightToSave = h;
                 break;
             }
         }
 
         if (highlightToSave == null) {
-            // Create new
             highlightToSave = new UserHighlight();
             highlightToSave.setUserId(userId);
             highlightToSave.setContentId(contentId);
             highlightToSave.setCreatedAt(LocalDateTime.now());
         }
 
-        // 3. Update the fields (in case they changed the color)
         highlightToSave.setSelectionCoords(request.getSelectionData());
         highlightToSave.setHighlightedText(request.getHighlightedText());
         highlightToSave.setColor(request.getColor());
@@ -265,20 +301,14 @@ public class ContentService {
 
     @Transactional
     public void deleteHighlight(Long userId, Long highlightId) {
-        // 1. Fetch the highlight
         UserHighlight highlight = highlightRepository.findById(highlightId)
                 .orElseThrow(() -> new ResourceNotFoundException("Highlight not found"));
 
-        // 2. Security Check: Ensure the user trying to delete it is the owner
-        // This prevents User A from deleting User B's highlights via API manipulation
         if (!highlight.getUserId().equals(userId)) {
             throw new InvalidContentException("You do not have permission to delete this highlight");
         }
 
-        // 3. Delete from database
         highlightRepository.delete(highlight);
-
         System.out.println("Highlight id="+highlightId +" deleted by userId="+userId);
     }
-
 }

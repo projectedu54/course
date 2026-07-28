@@ -1,0 +1,30 @@
+services:
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: local_s3_minio
+    ports:
+      - "9000:9000" # Keep S3 API port on 9000
+      - "9002:9001" # Changed UI port from 9001 to 9002
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  create-bucket:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO to start...' &&
+      sleep 3;
+      /usr/bin/mc alias set local_s3 http://minio:9000 admin password123;
+      /usr/bin/mc mb local_s3/course-files-bucket;
+      echo 'Bucket created successfully!';
+      "
+
+volumes:
+  minio_data:
