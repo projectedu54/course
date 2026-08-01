@@ -8,7 +8,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
-import java.util.UUID;
 
 @Service
 public class S3StorageService {
@@ -22,29 +21,34 @@ public class S3StorageService {
         this.s3Client = s3Client;
     }
 
-    public String uploadFile(MultipartFile file) {
-        if (file.isEmpty()) {
+    public String uploadFile(MultipartFile file, String s3FileKey) {
+        if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Cannot upload empty file");
         }
-
-        // Generate a unique file name to prevent overwriting files with the same name
-        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
 
         try {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
-                    .key(fileName)
+                    .key(s3FileKey)
                     .contentType(file.getContentType())
                     .build();
 
             s3Client.putObject(putObjectRequest,
                     RequestBody.fromBytes(file.getBytes()));
 
-            // Return the file path/URL that can be stored in the database
-            return fileName; // Or full URL: http://localhost:9000/course-files-bucket/ + fileName
+            return s3FileKey;
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to upload file to S3", e);
         }
+    }
+
+    public String uploadFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Cannot upload empty file");
+        }
+
+        String fileName = java.util.UUID.randomUUID() + "_" + file.getOriginalFilename();
+        return uploadFile(file, fileName);
     }
 }

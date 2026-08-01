@@ -94,7 +94,6 @@ public class ContentService {
         content.setTitle(title);
         content.setDescription(description);
 
-        // Parse explicitly using the fully qualified or correctly imported Enum package
         ContentType contentType = ContentType.valueOf(contentTypeStr.toUpperCase());
         content.setContentType(contentType);
 
@@ -105,8 +104,33 @@ public class ContentService {
             if (file == null || file.isEmpty()) {
                 throw new InvalidContentException("File is required for content type: " + contentTypeStr);
             }
-            // Upload file to local MinIO/S3 bucket and save reference key
-            String s3FileKey = s3StorageService.uploadFile(file);
+
+            // 1. Resolve Course ID and Unit Context from Topic Hierarchy
+            Long courseId = null;
+            Long unitId = null;
+            String unitType = "NONE";
+
+            if (topic.getModule() != null) {
+                courseId = topic.getModule().getCourse().getId();
+                unitId = topic.getModule().getId();
+                unitType = "MODULE";
+            } else if (topic.getChapter() != null) {
+                courseId = topic.getChapter().getCourse().getId();
+                unitId = topic.getChapter().getId();
+                unitType = "CHAPTER";
+            } else if (topic.getSection() != null) {
+                courseId = topic.getSection().getCourse().getId();
+                unitId = topic.getSection().getId();
+                unitType = "SECTION";
+            }
+
+            // 2. Generate Structured S3 Key: course_id/unit_type_id/topic_id/filename
+            String originalFileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
+            String s3FileKey = generateS3Key(courseId, unitType, unitId, topicId, originalFileName);
+
+            // 3. Upload file using the structured key path reference
+            s3StorageService.uploadFile(file, s3FileKey); // Calls the overloaded method taking both file and custom key
+
             content.setContentUrl(s3FileKey);
             content.setTextContent(null);
         }
@@ -119,6 +143,32 @@ public class ContentService {
 
         Content saved = contentRepository.save(content);
         return mapToResponse(saved);
+    }
+
+    // ================= S3 HIERARCHICAL KEY BUILDER =================
+    /**
+     * Generates a structured S3 file key following the format:
+     * courses/{courseId}/{unit_folder}/{unitId}/topics/{topicId}/{timestamp}_{filename}
+     */
+    private String generateS3Key(Long courseId, String unitType, Long unitId, Long topicId, String originalFileName) {
+        String cleanFileName = System.currentTimeMillis() + "_" + originalFileName.replaceAll("\\s+", "_");
+
+        if (courseId == null) {
+            courseId = 0L; // Fallback if course mapping is direct
+        }
+
+        if (unitType == null || unitType.equalsIgnoreCase("NONE") || unitId == null) {
+            return String.format("courses/%d/topics/%d/%s", courseId, topicId, cleanFileName);
+        }
+
+        String unitFolder = switch (unitType.toUpperCase()) {
+            case "MODULE" -> "modules";
+            case "CHAPTER" -> "chapters";
+            case "SECTION" -> "sections";
+            default -> "units";
+        };
+
+        return String.format("courses/%d/%s/%d/topics/%d/%s", courseId, unitFolder, unitId, topicId, cleanFileName);
     }
 
     // ================= GET ALL =================
@@ -309,6 +359,5 @@ public class ContentService {
         }
 
         highlightRepository.delete(highlight);
-        System.out.println("Highlight id="+highlightId +" deleted by userId="+userId);
     }
 }

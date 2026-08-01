@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -163,6 +164,20 @@ public class GlobalExceptionHandler {
         body.put("status", "error");
         body.put("message", "Please complete the following items before publishing:");
         body.put("errors", ex.getErrors());
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+
+        // Customize your error response structure to match your project's error format
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "File Too Large");
+        body.put("message", "The uploaded file exceeds the maximum permitted size limit. Please upload a smaller file.");
+
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 }

@@ -14,6 +14,11 @@ spring:
         jdbc:
           batch_size: 50
         order_inserts: true
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
 server:
   error:
     include-message: always
